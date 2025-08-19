@@ -334,12 +334,24 @@ export function DesignerProvider({ children }) {
     return 'skill-id-placeholder';
   };
 
+  const getDesignerAssessment = (designerId) => {
+    console.log('=== GET DESIGNER ASSESSMENT ===');
+    console.log('Looking for assessment for designer:', designerId);
+    console.log('Current assessments state:', state.assessments);
+    
+    const assessment = state.assessments[designerId];
+    console.log('Found assessment:', assessment);
+    
+    return assessment;
+  };
+
   const value = {
     ...state,
     addDesigner,
     updateDesigner,
     deleteDesigner,
     saveAssessment,
+    getDesignerAssessment, // Add this line
     setCurrentDesigner: (designerId) => {
       dispatch({ type: 'SET_CURRENT_DESIGNER', payload: designerId });
     }

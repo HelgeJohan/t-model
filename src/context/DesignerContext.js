@@ -1,84 +1,43 @@
-import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 
 const DesignerContext = createContext();
 
 const initialState = {
   designers: [],
   currentDesigner: null,
-  assessments: {}
+  assessments: {},
+  user: null,
+  loading: true
 };
 
-const designerReducer = (state, action) => {
-  console.log('Reducer called with action:', action.type, action.payload);
+function designerReducer(state, action) {
+  console.log('Reducer called with action:', action.type);
   console.log('Current state:', state);
   
   switch (action.type) {
+    case 'SET_USER':
+      return { ...state, user: action.payload, loading: false };
+    
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    
+    case 'SET_DESIGNERS':
+      return { ...state, designers: action.payload };
+    
     case 'ADD_DESIGNER':
-      console.log('=== REDUCER: ADD_DESIGNER ===');
-      console.log('Payload received:', action.payload);
-      console.log('Current designers in state:', state.designers);
-      
-      const newState1 = {
-        ...state,
-        designers: [...state.designers, action.payload],
-        currentDesigner: action.payload.id
-      };
-      
-      console.log('New state after ADD_DESIGNER:', newState1);
-      console.log('New designers array length:', newState1.designers.length);
-      console.log('=== END REDUCER: ADD_DESIGNER ===');
-      return newState1;
-    
-    case 'SET_CURRENT_DESIGNER':
-      const newState2 = {
-        ...state,
-        currentDesigner: action.payload
-      };
-      console.log('New state after SET_CURRENT_DESIGNER:', newState2);
-      return newState2;
-    
-    case 'SAVE_ASSESSMENT':
-      const newState3 = {
-        ...state,
-        assessments: {
-          ...state.assessments,
-          [action.payload.designerId]: {
-            ...action.payload.assessment,
-            timestamp: new Date().toISOString()
-          }
-        }
-      };
-      console.log('New state after SAVE_ASSESSMENT:', newState3);
-      return newState3;
-    
-    case 'LOAD_DESIGNERS':
-      const newState4 = {
-        ...state,
-        designers: action.payload
-      };
-      console.log('New state after LOAD_DESIGNERS:', newState4);
-      return newState4;
-    
-    case 'LOAD_ASSESSMENTS':
-      const newState5 = {
-        ...state,
-        assessments: action.payload
-      };
-      console.log('New state after LOAD_ASSESSMENTS:', newState5);
-      return newState5;
+      return { ...state, designers: [...state.designers, action.payload] };
     
     case 'UPDATE_DESIGNER':
-      const newState6 = {
+      return {
         ...state,
         designers: state.designers.map(d => 
           d.id === action.payload.id ? { ...d, name: action.payload.name } : d
         )
       };
-      console.log('New state after UPDATE_DESIGNER:', newState6);
-      return newState6;
     
     case 'DELETE_DESIGNER':
-      const newState7 = {
+      return {
         ...state,
         designers: state.designers.filter(d => d.id !== action.payload),
         currentDesigner: state.currentDesigner === action.payload ? null : state.currentDesigner,
@@ -86,254 +45,242 @@ const designerReducer = (state, action) => {
           Object.entries(state.assessments).filter(([id]) => id !== action.payload)
         )
       };
-      console.log('New state after DELETE_DESIGNER:', newState7);
-      return newState7;
+    
+    case 'SET_CURRENT_DESIGNER':
+      return { ...state, currentDesigner: action.payload };
+    
+    case 'SET_ASSESSMENTS':
+      return { ...state, assessments: action.payload };
+    
+    case 'UPDATE_ASSESSMENT':
+      return {
+        ...state,
+        assessments: {
+          ...state.assessments,
+          [action.payload.designerId]: action.payload.assessment
+        }
+      };
     
     default:
       return state;
   }
-};
+}
 
-export const DesignerProvider = ({ children }) => {
+export function DesignerProvider({ children }) {
   const [state, dispatch] = useReducer(designerReducer, initialState);
-  const hasLoaded = useRef(false);
 
-  // Test localStorage functionality
+  // Check for existing user session on app load
   useEffect(() => {
-    try {
-      localStorage.setItem('test', 'working');
-      const testValue = localStorage.getItem('test');
-      localStorage.removeItem('test');
-      console.log('localStorage test:', testValue === 'working' ? 'PASSED' : 'FAILED');
-    } catch (error) {
-      console.error('localStorage not available:', error);
-    }
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        dispatch({ type: 'SET_USER', payload: user });
+        await loadUserData(user.id);
+      } else {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    };
+
+    getUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          dispatch({ type: 'SET_USER', payload: session.user });
+          await loadUserData(session.user.id);
+        } else {
+          dispatch({ type: 'SET_USER', payload: null });
+          dispatch({ type: 'SET_DESIGNERS', payload: [] });
+          dispatch({ type: 'SET_ASSESSMENTS', payload: {} });
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Migrate old English skill names to Norwegian
-  const migrateSkillNames = (assessment) => {
-    if (!assessment || !assessment.skills) return assessment;
-    
-    console.log('=== MIGRATING SKILL NAMES ===');
-    console.log('Original skills:', assessment.skills);
-    
-    const skillNameMapping = {
-      'Business analysis': 'Forretnings-analyse',
-      'User research': 'Brukerinnsikt',
-      'Visual and information design': 'Grafisk design',
-      'Content design': 'Innholds-design',
-      'Interaction design': 'Interaksjons-design',
-      'Information architecture': 'Informasjons-arkitektur',
-      'Usability evaluation': 'Brukertesting',
-      'Front-end design and accessibility': 'Frontend design, UU',
-      'Experimentation': 'Prototyping',
-      'Data and analytics': 'Data og trafikkanalyse',
-      // Also handle the old Norwegian names without hyphens
-      'Forretningsanalyse': 'Forretnings-analyse',
-      'Innholdsdesign': 'Innholds-design',
-      'Interaksjonsdesign': 'Interaksjons-design',
-      'Informasjonsarkitektur': 'Informasjons-arkitektur',
-      // Handle the case where "design" might have a hyphen
-      'Frontend design, UU': 'Frontend design, UU',
-      'Front-end design, UU': 'Frontend design, UU',
-      // Handle any other variations that might exist
-      'Frontend de-sign, UU': 'Frontend design, UU',
-      'Front-end de-sign, UU': 'Frontend design, UU',
-      'Frontend de-sign and accessibility': 'Frontend design, UU',
-      'Front-end de-sign and accessibility': 'Frontend design, UU'
-    };
-    
-    const migratedSkills = assessment.skills.map(skill => {
-      console.log('Processing skill:', skill.name);
-      
-      // First try exact mapping
-      let newName = skillNameMapping[skill.name];
-      
-      // If no exact match, try to fix any "de-sign" variations
-      if (!newName && skill.name.includes('de-sign')) {
-        newName = skill.name.replace(/de-sign/g, 'design');
-        console.log('Fixed de-sign to design:', skill.name, '→', newName);
+  const loadUserData = async (userId) => {
+    try {
+      // Load designers for this user
+      const { data: designers, error: designersError } = await supabase
+        .from('designers')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (designersError) throw designersError;
+
+      if (designers) {
+        dispatch({ type: 'SET_DESIGNERS', payload: designers });
+        
+        // Load assessments for each designer
+        const assessments = {};
+        for (const designer of designers) {
+          const { data: assessment, error: assessmentError } = await supabase
+            .from('assessments')
+            .select(`
+              *,
+              assessment_skills (
+                skill_id,
+                proficiency,
+                notes
+              )
+            `)
+            .eq('designer_id', designer.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (!assessmentError && assessment && assessment.length > 0) {
+            const latestAssessment = assessment[0];
+            const skills = latestAssessment.assessment_skills.map(as => ({
+              name: getSkillName(as.skill_id), // We'll implement this
+              proficiency: as.proficiency
+            }));
+            
+            assessments[designer.id] = {
+              skills,
+              timestamp: latestAssessment.created_at
+            };
+          }
+        }
+        
+        dispatch({ type: 'SET_ASSESSMENTS', payload: assessments });
       }
-      
-      console.log('Final skill name:', newName || skill.name);
-      
-      return {
-        ...skill,
-        name: newName || skill.name
-      };
-    });
-    
-    console.log('Migrated skills:', migratedSkills);
-    console.log('=== END MIGRATION ===');
-    
-    return {
-      ...assessment,
-      skills: migratedSkills
-    };
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
   };
 
-  // Load data from localStorage on app start (only once)
-  useEffect(() => {
-    if (hasLoaded.current) {
-      console.log('Already loaded, skipping...');
-      return;
-    }
-    
-    console.log('=== LOADING FROM LOCALSTORAGE ===');
-    const savedDesigners = localStorage.getItem('uxDesigners');
-    const savedAssessments = localStorage.getItem('uxAssessments');
-    
-    console.log('Raw localStorage data:', { savedDesigners, savedAssessments });
-    
+  const getSkillName = (skillId) => {
+    // This will be implemented when we load skills from database
+    // For now, return a placeholder
+    return 'Skill ' + skillId;
+  };
+
+  const addDesigner = async (name, email) => {
+    if (!state.user) return null;
+
     try {
-      const designers = savedDesigners ? JSON.parse(savedDesigners) : [];
-      const assessments = savedAssessments ? JSON.parse(savedAssessments) : {};
-      
-      // Migrate existing assessments to use Norwegian skill names
-      const migratedAssessments = {};
-      Object.keys(assessments).forEach(designerId => {
-        migratedAssessments[designerId] = migrateSkillNames(assessments[designerId]);
-      });
-      
-      console.log('Parsed designers:', designers);
-      console.log('Dispatching LOAD_DESIGNERS with:', designers);
-      dispatch({ type: 'LOAD_DESIGNERS', payload: designers });
-      
-      console.log('Parsed assessments:', assessments);
-      console.log('Dispatching LOAD_ASSESSMENTS with:', migratedAssessments);
-      dispatch({ type: 'LOAD_ASSESSMENTS', payload: migratedAssessments });
-      
-      // Save migrated assessments back to localStorage
-      if (Object.keys(migratedAssessments).length > 0) {
-        localStorage.setItem('uxAssessments', JSON.stringify(migratedAssessments));
-        console.log('Migrated assessments saved to localStorage');
-      }
-      
-      hasLoaded.current = true;
-      console.log('=== FINISHED LOADING ===');
+      const { data: designer, error } = await supabase
+        .from('designers')
+        .insert([
+          {
+            name,
+            email,
+            user_id: state.user.id
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      dispatch({ type: 'ADD_DESIGNER', payload: designer });
+      return designer;
     } catch (error) {
-      console.error('Error loading data from localStorage:', error);
-    }
-  }, []);
-
-  // Save data to localStorage whenever state changes
-  useEffect(() => {
-    console.log('=== SAVING DESIGNERS TO LOCALSTORAGE ===');
-    console.log('State.designers changed to:', state.designers);
-    console.log('State.designers length:', state.designers.length);
-    console.log('Stringified designers:', JSON.stringify(state.designers));
-    
-    localStorage.setItem('uxDesigners', JSON.stringify(state.designers));
-    
-    // Verify what was saved
-    const saved = localStorage.getItem('uxDesigners');
-    console.log('Verified saved data:', saved);
-    console.log('=== END SAVING DESIGNERS ===');
-  }, [state.designers]);
-
-  useEffect(() => {
-    console.log('Saving assessments to localStorage:', state.assessments);
-    
-    // Apply migration before saving to ensure all skill names are correct
-    const migratedAssessments = {};
-    Object.keys(state.assessments).forEach(designerId => {
-      migratedAssessments[designerId] = migrateSkillNames(state.assessments[designerId]);
-    });
-    
-    localStorage.setItem('uxAssessments', JSON.stringify(migratedAssessments));
-  }, [state.assessments]);
-
-  const addDesigner = (name) => {
-    console.log('=== ADDING DESIGNER ===');
-    console.log('Current designers before adding:', state.designers);
-    console.log('Adding designer with name:', name);
-    
-    const newDesigner = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      createdAt: new Date().toISOString()
-    };
-    
-    console.log('New designer object:', newDesigner);
-    
-    // Check if name already exists
-    const nameExists = state.designers.some(
-      designer => designer.name.toLowerCase() === name.trim().toLowerCase()
-    );
-    
-    if (nameExists) {
-      console.log('Designer name already exists, not adding');
+      console.error('Error adding designer:', error);
       return null;
     }
-    
-    console.log('Dispatching ADD_DESIGNER with:', newDesigner);
-    dispatch({ type: 'ADD_DESIGNER', payload: newDesigner });
-    
-    console.log('=== FINISHED ADDING DESIGNER ===');
-    return newDesigner;
   };
 
-  const setCurrentDesigner = (designerId) => {
-    dispatch({ type: 'SET_CURRENT_DESIGNER', payload: designerId });
+  const updateDesigner = async (id, name) => {
+    try {
+      const { data: designer, error } = await supabase
+        .from('designers')
+        .update({ name })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      dispatch({ type: 'UPDATE_DESIGNER', payload: { id, name } });
+      return designer;
+    } catch (error) {
+      console.error('Error updating designer:', error);
+      return null;
+    }
   };
 
-  const saveAssessment = (designerId, assessment) => {
-    dispatch({ type: 'SAVE_ASSESSMENT', payload: { designerId, assessment } });
+  const deleteDesigner = async (id) => {
+    try {
+      const { error } = await supabase
+        .from('designers')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      dispatch({ type: 'DELETE_DESIGNER', payload: id });
+      return true;
+    } catch (error) {
+      console.error('Error deleting designer:', error);
+      return false;
+    }
   };
 
-  const getCurrentAssessment = () => {
-    if (!state.currentDesigner) return null;
-    return state.assessments[state.currentDesigner] || null;
+  const saveAssessment = async (designerId, skills) => {
+    if (!state.user) return false;
+
+    try {
+      // First, create or get the latest assessment
+      const { data: assessment, error: assessmentError } = await supabase
+        .from('assessments')
+        .insert([
+          {
+            designer_id: designerId,
+            name: 'Assessment'
+          }
+        ])
+        .select()
+        .single();
+
+      if (assessmentError) throw assessmentError;
+
+      // Then, insert all the skill proficiencies
+      const skillData = skills.map(skill => ({
+        assessment_id: assessment.id,
+        skill_id: getSkillIdByName(skill.name), // We'll implement this
+        proficiency: skill.proficiency
+      }));
+
+      const { error: skillsError } = await supabase
+        .from('assessment_skills')
+        .insert(skillData);
+
+      if (skillsError) throw skillsError;
+
+      // Update local state
+      dispatch({
+        type: 'UPDATE_ASSESSMENT',
+        payload: {
+          designerId,
+          assessment: {
+            skills,
+            timestamp: assessment.created_at
+          }
+        }
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error saving assessment:', error);
+      return false;
+    }
   };
 
-  const getDesignerAssessment = (designerId) => {
-    return state.assessments[designerId] || null;
-  };
-
-  const migrateAllAssessments = () => {
-    console.log('=== MIGRATE ALL ASSESSMENTS CALLED ===');
-    console.log('Current state.assessments:', state.assessments);
-    console.log('Number of assessments:', Object.keys(state.assessments).length);
-    
-    // Force migration of all existing assessments
-    const migratedAssessments = {};
-    Object.keys(state.assessments).forEach(designerId => {
-      console.log('Migrating designer:', designerId);
-      migratedAssessments[designerId] = migrateSkillNames(state.assessments[designerId]);
-    });
-    
-    console.log('Migrated assessments:', migratedAssessments);
-    
-    // Update state with migrated assessments
-    dispatch({ type: 'LOAD_ASSESSMENTS', payload: migratedAssessments });
-    
-    // Save to localStorage
-    localStorage.setItem('uxAssessments', JSON.stringify(migratedAssessments));
-    
-    console.log('About to reload page...');
-    
-    // Force a page reload to ensure all components get the updated data
-    window.location.reload();
-  };
-
-  const updateDesigner = (designerId, newName) => {
-    dispatch({ type: 'UPDATE_DESIGNER', payload: { id: designerId, name: newName } });
-  };
-
-  const deleteDesigner = (designerId) => {
-    dispatch({ type: 'DELETE_DESIGNER', payload: designerId });
+  const getSkillIdByName = (skillName) => {
+    // This will be implemented when we load skills from database
+    // For now, return a placeholder
+    return 'skill-id-placeholder';
   };
 
   const value = {
     ...state,
     addDesigner,
-    setCurrentDesigner,
-    saveAssessment,
-    getCurrentAssessment,
-    getDesignerAssessment,
-    migrateAllAssessments,
     updateDesigner,
-    deleteDesigner
+    deleteDesigner,
+    saveAssessment
   };
 
   return (
@@ -341,12 +288,12 @@ export const DesignerProvider = ({ children }) => {
       {children}
     </DesignerContext.Provider>
   );
-};
+}
 
-export const useDesigner = () => {
+export function useDesigner() {
   const context = useContext(DesignerContext);
   if (!context) {
     throw new Error('useDesigner must be used within a DesignerProvider');
   }
   return context;
-};
+}

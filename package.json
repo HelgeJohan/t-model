@@ -4,6 +4,7 @@
   "description": "Interactive T-model for UX design skills assessment",
   "private": true,
   "dependencies": {
+    "@supabase/supabase-js": "^2.55.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.1",
     "react": "^18.2.0",
@@ -35,5 +36,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "vercel": "^46.0.1"
   }
 }

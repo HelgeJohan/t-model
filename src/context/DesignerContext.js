@@ -184,10 +184,24 @@ export function DesignerProvider({ children }) {
       
       // Test database connection first with a simple select
       console.log('Testing database connection with simple select...');
-      const { data: testData, error: testError } = await supabase
-        .from('designers')
-        .select('id')
-        .limit(1);
+      console.log('About to call supabase.from...');
+      
+      // Test if supabase object is working
+      console.log('Supabase object:', supabase);
+      console.log('Supabase.from method:', typeof supabase.from);
+      
+      // Try the query step by step
+      const query = supabase.from('designers');
+      console.log('Query object created:', query);
+      
+      const selectQuery = query.select('id');
+      console.log('Select query created:', selectQuery);
+      
+      const limitQuery = selectQuery.limit(1);
+      console.log('Limit query created:', limitQuery);
+      
+      console.log('About to await the query...');
+      const { data: testData, error: testError } = await limitQuery;
       
       console.log('Connection test result:', { testData, testError });
       
@@ -222,6 +236,8 @@ export function DesignerProvider({ children }) {
       return designer;
     } catch (error) {
       console.error('Error adding designer:', error);
+      console.error('Error details:', error.message, error.code, error.details);
+      console.error('Error stack:', error.stack);
       return null;
     }
   };

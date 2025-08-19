@@ -98,138 +98,90 @@ export default function DesignerRegistration({ onDesignerAdded }) {
   const { addDesigner } = useDesigner();
 
   const handleSubmit = async (e) => {
-    console.log('=== FORM SUBMITTED ==='); // Add this line
     e.preventDefault();
     
-    console.log('Form submitted with name:', name);
-    
     if (!name.trim()) {
-      console.log('Name is empty, returning');
       return;
     }
 
-    console.log('Calling addDesigner...');
     const designer = await addDesigner(name.trim());
-    console.log('addDesigner result:', designer);
     
     if (designer) {
-      console.log('Designer added successfully, closing form');
       setName('');
       setIsVisible(false);
       if (onDesignerAdded) {
-        console.log('Calling onDesignerAdded callback');
         onDesignerAdded(designer);
       }
-    } else {
-      console.log('addDesigner returned null/undefined');
     }
   };
 
-  // Add this test function
-  const testClick = () => {
-    console.log('=== TEST CLICK ===');
-    console.log('Current name:', name);
-    console.log('Form visible:', isVisible);
-  };
+  if (!isVisible) {
+    return (
+      <button
+        onClick={() => setIsVisible(true)}
+        style={{
+          background: 'white',
+          border: '2px solid #777777',
+          color: '#333333',
+          padding: '12px 24px',
+          borderRadius: '8px',
+          fontSize: '1rem',
+          fontWeight: '500',
+          cursor: 'pointer',
+          transition: '0.2s',
+          height: '35px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', marginRight: '8px', fill: '#777777' }}>
+          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
+        </svg>
+        + Legg til designer
+      </button>
+    );
+  }
 
   return (
-    <div>
-      {!isVisible ? (
-        <button
-          onClick={() => setIsVisible(true)}
-          style={{
-            background: 'white',
-            border: '2px solid #777777',
-            color: '#333333',
-            padding: '12px 24px',
-            borderRadius: '8px',
-            fontSize: '1rem',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: '0.2s',
-            height: '35px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', marginRight: '8px', fill: '#777777' }}>
-            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
-          </svg>
-          + Legg til designer
-        </button>
-      ) : (
-        <form onSubmit={handleSubmit} style={{ marginTop: '20px' }}>
-          <div style={{ marginBottom: '15px' }}>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Designer navn"
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                border: '2px solid #e1e5e9',
-                borderRadius: '8px',
-                fontSize: '1rem'
-              }}
-              required
-            />
-          </div>
+    <RegistrationOverlay>
+      <RegistrationCard>
+        <Title>Legg til ny designer</Title>
+        <Description>
+          Skriv inn navnet på den nye designeren
+        </Description>
+
+        <form onSubmit={handleSubmit}>
+          <Input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Designer navn"
+            required
+            autoFocus
+          />
           
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              type="submit"
-              onClick={testClick} // Add this line
-              style={{
-                background: '#333333',
-                color: 'white',
-                border: 'none',
-                padding: '12px 24px',
-                borderRadius: '8px',
-                fontSize: '1rem',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: '0.2s',
-                height: '35px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
+          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+            <Button type="submit">
               <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', marginRight: '8px', fill: 'white' }}>
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"></path>
               </svg>
-              Legg til og start egenvurdering
-            </button>
+              Legg til designer
+            </Button>
             
-            <button
-              type="button"
+            <Button 
+              type="button" 
               onClick={() => {
                 setIsVisible(false);
                 setName('');
               }}
-              style={{
-                background: 'white',
-                border: '2px solid #777777',
-                color: '#333333',
-                padding: '12px 24px',
-                borderRadius: '8px',
-                fontSize: '1rem',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: '0.2s',
-                height: '35px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
+              style={{ background: '#777777' }}
             >
               Avbryt
-            </button>
+            </Button>
           </div>
         </form>
-      )}
-    </div>
+      </RegistrationCard>
+    </RegistrationOverlay>
   );
 }

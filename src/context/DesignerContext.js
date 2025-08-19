@@ -182,6 +182,22 @@ export function DesignerProvider({ children }) {
       console.log('Attempting to insert designer into database...');
       console.log('Inserting data:', { name, user_id: state.user.id });
       
+      // Test database connection first with a simple select
+      console.log('Testing database connection with simple select...');
+      const { data: testData, error: testError } = await supabase
+        .from('designers')
+        .select('id')
+        .limit(1);
+      
+      console.log('Connection test result:', { testData, testError });
+      
+      if (testError) {
+        console.log('Connection test failed:', testError);
+        throw testError;
+      }
+      
+      console.log('Connection test successful, proceeding with insert...');
+      
       const { data: designer, error } = await supabase
         .from('designers')
         .insert([

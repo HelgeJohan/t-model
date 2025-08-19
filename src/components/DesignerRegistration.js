@@ -115,73 +115,75 @@ export default function DesignerRegistration({ onDesignerAdded }) {
     }
   };
 
-  if (!isVisible) {
+  // Show either the button OR the modal, never both
+  if (isVisible) {
     return (
-      <button
-        onClick={() => setIsVisible(true)}
-        style={{
-          background: 'white',
-          border: '2px solid #777777',
-          color: '#333333',
-          padding: '12px 24px',
-          borderRadius: '8px',
-          fontSize: '1rem',
-          fontWeight: '500',
-          cursor: 'pointer',
-          transition: '0.2s',
-          height: '35px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', marginRight: '8px', fill: '#777777' }}>
-          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
-        </svg>
-        + Legg til designer
-      </button>
+      <RegistrationOverlay>
+        <RegistrationCard>
+          <Title>Legg til ny designer</Title>
+          <Description>
+            Skriv inn navnet på den nye designeren
+          </Description>
+
+          <form onSubmit={handleSubmit}>
+            <Input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Designer navn"
+              required
+              autoFocus
+            />
+            
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+              <Button type="submit">
+                <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', marginRight: '8px', fill: 'white' }}>
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"></path>
+                </svg>
+                Legg til designer
+              </Button>
+              
+              <Button 
+                type="button" 
+                onClick={() => {
+                  setIsVisible(false);
+                  setName('');
+                }}
+                style={{ background: '#777777' }}
+              >
+                Avbryt
+              </Button>
+            </div>
+          </form>
+        </RegistrationCard>
+      </RegistrationOverlay>
     );
   }
 
+  // Show only the button when modal is not visible
   return (
-    <RegistrationOverlay>
-      <RegistrationCard>
-        <Title>Legg til ny designer</Title>
-        <Description>
-          Skriv inn navnet på den nye designeren
-        </Description>
-
-        <form onSubmit={handleSubmit}>
-          <Input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Designer navn"
-            required
-            autoFocus
-          />
-          
-          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-            <Button type="submit">
-              <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', marginRight: '8px', fill: 'white' }}>
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"></path>
-              </svg>
-              Legg til designer
-            </Button>
-            
-            <Button 
-              type="button" 
-              onClick={() => {
-                setIsVisible(false);
-                setName('');
-              }}
-              style={{ background: '#777777' }}
-            >
-              Avbryt
-            </Button>
-          </div>
-        </form>
-      </RegistrationCard>
-    </RegistrationOverlay>
+    <button
+      onClick={() => setIsVisible(true)}
+      style={{
+        background: 'white',
+        border: '2px solid #777777',
+        color: '#333333',
+        padding: '12px 24px',
+        borderRadius: '8px',
+        fontSize: '1rem',
+        fontWeight: '500',
+        cursor: 'pointer',
+        transition: '0.2s',
+        height: '35px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
+      <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', marginRight: '8px', fill: '#777777' }}>
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
+      </svg>
+      + Legg til designer
+    </button>
   );
 }

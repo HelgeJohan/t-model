@@ -92,66 +92,144 @@ const ErrorMessage = styled.div`
   min-height: 20px;
 `;
 
-const DesignerRegistration = ({ onClose }) => {
+export default function DesignerRegistration({ onDesignerAdded }) {
   const [name, setName] = useState('');
-  const [error, setError] = useState('');
-  const { addDesigner, designers } = useDesigner();
+  const [isVisible, setIsVisible] = useState(false);
+  const { addDesigner } = useDesigner();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
+    console.log('=== FORM SUBMITTED ==='); // Add this line
     e.preventDefault();
     
+    console.log('Form submitted with name:', name);
+    
     if (!name.trim()) {
-      setError('Vennligst skriv navnet ditt');
+      console.log('Name is empty, returning');
       return;
     }
+
+    console.log('Calling addDesigner...');
+    const designer = await addDesigner(name.trim());
+    console.log('addDesigner result:', designer);
     
-    // Check if name already exists
-    const nameExists = designers.some(
-      designer => designer.name.toLowerCase() === name.trim().toLowerCase()
-    );
-    
-    if (nameExists) {
-      setError('En designer med dette navnet eksisterer allerede');
-      return;
+    if (designer) {
+      console.log('Designer added successfully, closing form');
+      setName('');
+      setIsVisible(false);
+      if (onDesignerAdded) {
+        console.log('Calling onDesignerAdded callback');
+        onDesignerAdded(designer);
+      }
+    } else {
+      console.log('addDesigner returned null/undefined');
     }
-    
-    // Add designer and close
-    addDesigner(name);
-    onClose();
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSubmit(e);
-    }
+  // Add this test function
+  const testClick = () => {
+    console.log('=== TEST CLICK ===');
+    console.log('Current name:', name);
+    console.log('Form visible:', isVisible);
   };
 
   return (
-    <RegistrationOverlay onClick={onClose}>
-      <RegistrationCard onClick={(e) => e.stopPropagation()}>
-        <Title>Legg til designer</Title>
-        <Description>
-          Start din egenvurdering nå. Du kan lagre valgene dine og komme tilbake og oppdatere valgene når som helst.
-        </Description>
-        
-        <form onSubmit={handleSubmit}>
-          <Input
-            type="text"
-            placeholder="Skriv navnet ditt"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
-          />
+    <div>
+      {!isVisible ? (
+        <button
+          onClick={() => setIsVisible(true)}
+          style={{
+            background: 'white',
+            border: '2px solid #777777',
+            color: '#333333',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            fontSize: '1rem',
+            fontWeight: '500',
+            cursor: 'pointer',
+            transition: '0.2s',
+            height: '35px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', marginRight: '8px', fill: '#777777' }}>
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
+          </svg>
+          + Legg til designer
+        </button>
+      ) : (
+        <form onSubmit={handleSubmit} style={{ marginTop: '20px' }}>
+          <div style={{ marginBottom: '15px' }}>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Designer navn"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                border: '2px solid #e1e5e9',
+                borderRadius: '8px',
+                fontSize: '1rem'
+              }}
+              required
+            />
+          </div>
           
-          <ErrorMessage>{error}</ErrorMessage>
-          
-          <Button type="submit" disabled={!name.trim()}>
-            Legg til og start egenvurdering
-          </Button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="submit"
+              onClick={testClick} // Add this line
+              style={{
+                background: '#333333',
+                color: 'white',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: '8px',
+                fontSize: '1rem',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: '0.2s',
+                height: '35px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', marginRight: '8px', fill: 'white' }}>
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"></path>
+              </svg>
+              Legg til og start egenvurdering
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => {
+                setIsVisible(false);
+                setName('');
+              }}
+              style={{
+                background: 'white',
+                border: '2px solid #777777',
+                color: '#333333',
+                padding: '12px 24px',
+                borderRadius: '8px',
+                fontSize: '1rem',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: '0.2s',
+                height: '35px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              Avbryt
+            </button>
+          </div>
         </form>
-      </RegistrationCard>
-    </RegistrationOverlay>
+      )}
+    </div>
   );
-};
-
-export default DesignerRegistration;
+}

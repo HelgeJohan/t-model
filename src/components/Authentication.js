@@ -163,6 +163,13 @@ export default function Authentication() {
     setLoading(true);
 
     try {
+      // Check email domain for sign up
+      if (isSignUp && !email.endsWith('@knowit.no')) {
+        setError('Only @knowit.no email addresses are allowed for sign up');
+        setLoading(false);
+        return;
+      }
+
       if (isSignUp) {
         // Sign up
         if (password !== confirmPassword) {
@@ -190,7 +197,7 @@ export default function Authentication() {
           setSuccess('Account created successfully!');
         }
       } else {
-        // Sign in
+        // Sign in (allow any email for existing users)
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,

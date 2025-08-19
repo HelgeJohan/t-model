@@ -101,21 +101,29 @@ export function DesignerProvider({ children }) {
   }, []);
 
   const loadUserData = async (userId) => {
+    console.log('=== LOADING USER DATA ===');
+    console.log('User ID:', userId);
+    
     try {
-      // Load designers for this user
+      // Load ALL designers (no user filtering)
+      console.log('Fetching designers from database...');
       const { data: designers, error: designersError } = await supabase
         .from('designers')
         .select('*')
-        .eq('user_id', userId);
+        .order('name');
+
+      console.log('Designers response:', { designers, designersError });
 
       if (designersError) throw designersError;
 
       if (designers) {
+        console.log('Setting designers in state:', designers);
         dispatch({ type: 'SET_DESIGNERS', payload: designers });
         
         // Load assessments for each designer
         const assessments = {};
         for (const designer of designers) {
+          console.log('Loading assessment for designer:', designer.name);
           const { data: assessment, error: assessmentError } = await supabase
             .from('assessments')
             .select(`
@@ -130,10 +138,12 @@ export function DesignerProvider({ children }) {
             .order('created_at', { ascending: false })
             .limit(1);
 
+          console.log('Assessment for', designer.name, ':', assessment);
+
           if (!assessmentError && assessment && assessment.length > 0) {
             const latestAssessment = assessment[0];
             const skills = latestAssessment.assessment_skills.map(as => ({
-              name: getSkillName(as.skill_id), // We'll implement this
+              name: getSkillName(as.skill_id),
               proficiency: as.proficiency
             }));
             
@@ -144,6 +154,7 @@ export function DesignerProvider({ children }) {
           }
         }
         
+        console.log('Setting assessments in state:', assessments);
         dispatch({ type: 'SET_ASSESSMENTS', payload: assessments });
       }
     } catch (error) {
@@ -157,7 +168,7 @@ export function DesignerProvider({ children }) {
     return 'Skill ' + skillId;
   };
 
-  const addDesigner = async (name, email) => {
+  const addDesigner = async (name) => {
     if (!state.user) return null;
 
     try {
@@ -166,8 +177,7 @@ export function DesignerProvider({ children }) {
         .insert([
           {
             name,
-            email,
-            user_id: state.user.id
+            user_id: state.user.id // Track who created it
           }
         ])
         .select()
@@ -280,7 +290,10 @@ export function DesignerProvider({ children }) {
     addDesigner,
     updateDesigner,
     deleteDesigner,
-    saveAssessment
+    saveAssessment,
+    setCurrentDesigner: (designerId) => {
+      dispatch({ type: 'SET_CURRENT_DESIGNER', payload: designerId });
+    }
   };
 
   return (

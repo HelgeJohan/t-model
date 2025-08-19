@@ -107,14 +107,28 @@ export function DesignerProvider({ children }) {
     try {
       // Load ALL designers (no user filtering)
       console.log('Fetching designers from database...');
-      const { data: designers, error: designersError } = await supabase
+      
+      // Add timeout to prevent hanging
+      const designersPromise = supabase
         .from('designers')
         .select('*')
         .order('name');
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Designers fetch timeout')), 10000)
+      );
+      
+      const { data: designers, error: designersError } = await Promise.race([
+        designersPromise,
+        timeoutPromise
+      ]);
 
       console.log('Designers response:', { designers, designersError });
 
-      if (designersError) throw designersError;
+      if (designersError) {
+        console.error('Error fetching designers:', designersError);
+        throw designersError;
+      }
 
       if (designers) {
         console.log('Setting designers in state:', designers);
@@ -156,9 +170,12 @@ export function DesignerProvider({ children }) {
         
         console.log('Setting assessments in state:', assessments);
         dispatch({ type: 'SET_ASSESSMENTS', payload: assessments });
+      } else {
+        console.log('No designers found in database');
       }
     } catch (error) {
       console.error('Error loading user data:', error);
+      console.error('Error details:', error.message, error.code, error.details);
     }
   };
 

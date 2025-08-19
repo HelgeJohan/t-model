@@ -169,23 +169,40 @@ export function DesignerProvider({ children }) {
   };
 
   const addDesigner = async (name) => {
-    if (!state.user) return null;
+    console.log('=== ADD DESIGNER START ===');
+    console.log('DesignerContext.addDesigner called with:', name);
+    console.log('Current user:', state.user);
+    
+    if (!state.user) {
+      console.log('No user, returning null');
+      return null;
+    }
 
     try {
+      console.log('Attempting to insert designer into database...');
+      console.log('Inserting data:', { name, user_id: state.user.id });
+      
       const { data: designer, error } = await supabase
         .from('designers')
         .insert([
           {
             name,
-            user_id: state.user.id // Track who created it
+            user_id: state.user.id
           }
         ])
         .select()
         .single();
 
-      if (error) throw error;
+      console.log('Database response:', { designer, error });
 
+      if (error) {
+        console.log('Database error, throwing:', error);
+        throw error;
+      }
+
+      console.log('Designer added to database, updating state...');
       dispatch({ type: 'ADD_DESIGNER', payload: designer });
+      console.log('State updated, returning designer:', designer);
       return designer;
     } catch (error) {
       console.error('Error adding designer:', error);

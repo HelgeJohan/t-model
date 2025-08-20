@@ -56,6 +56,23 @@ export function DesignerProvider({ children }) {
   const [state, dispatch] = useReducer(designerReducer, initialState);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // Add navigation state persistence
+  useEffect(() => {
+    // Restore current designer from localStorage on refresh
+    const savedDesigner = localStorage.getItem('currentDesigner');
+    if (savedDesigner && !state.currentDesigner) {
+      console.log('Restoring current designer from localStorage:', savedDesigner);
+      dispatch({ type: 'SET_CURRENT_DESIGNER', payload: savedDesigner });
+    }
+  }, [state.currentDesigner]);
+
+  // Save current designer to localStorage when it changes
+  useEffect(() => {
+    if (state.currentDesigner) {
+      localStorage.setItem('currentDesigner', state.currentDesigner);
+    }
+  }, [state.currentDesigner]);
+
   // Simple function to load designers
   const loadDesigners = async () => {
     console.log('=== LOAD DESIGNERS START ===');
@@ -344,17 +361,31 @@ export function DesignerProvider({ children }) {
 
   const saveAssessment = async (designerId, skills) => {
     try {
-      // First, create the assessment
+      console.log('=== SAVE ASSESSMENT START ===');
+      console.log('Designer ID:', designerId);
+      console.log('Skills:', skills);
+      
+      // Create the assessment with proper schema
+      const assessmentData = {
+        designer_id: designerId,
+        user_id: state.user.id,
+        assessment_date: new Date().toISOString()
+      };
+      
+      console.log('Creating assessment with data:', assessmentData);
+      
       const { data: assessment, error: assessmentError } = await supabase
         .from('assessments')
-        .insert([{
-          designer_id: designerId,
-          user_id: state.user.id
-        }])
+        .insert([assessmentData])
         .select()
         .single();
 
-      if (assessmentError) throw assessmentError;
+      if (assessmentError) {
+        console.error('Error creating assessment:', assessmentError);
+        throw assessmentError;
+      }
+
+      console.log('Assessment created:', assessment);
 
       // Then, create the assessment skills
       const assessmentSkills = skills.map(skill => ({
@@ -363,11 +394,18 @@ export function DesignerProvider({ children }) {
         proficiency: skill.proficiency
       }));
 
+      console.log('Creating assessment skills:', assessmentSkills);
+
       const { error: skillsError } = await supabase
         .from('assessment_skills')
         .insert(assessmentSkills);
 
-      if (skillsError) throw skillsError;
+      if (skillsError) {
+        console.error('Error creating assessment skills:', skillsError);
+        throw skillsError;
+      }
+
+      console.log('Assessment skills created successfully');
 
       // Update local state
       const updatedAssessment = {
@@ -383,9 +421,11 @@ export function DesignerProvider({ children }) {
         }
       });
 
+      console.log('=== SAVE ASSESSMENT END ===');
       return updatedAssessment;
     } catch (error) {
       console.error('Error saving assessment:', error);
+      console.error('Error details:', error.message, error.code, error.details);
       throw error;
     }
   };

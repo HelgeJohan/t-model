@@ -123,7 +123,15 @@ export function DesignerProvider({ children }) {
   // Single initialization effect
   useEffect(() => {
     const initializeApp = async () => {
-      if (isInitialized) return;
+      console.log('=== INITIALIZE APP START ===');
+      console.log('isInitialized:', isInitialized);
+      console.log('state.loading:', state.loading);
+      console.log('state.designers.length:', state.designers.length);
+      
+      if (isInitialized && state.designers.length > 0) {
+        console.log('Already initialized with data, skipping...');
+        return;
+      }
       
       console.log('Initializing app...');
       
@@ -140,12 +148,14 @@ export function DesignerProvider({ children }) {
         
         // Set loading to false AFTER data is loaded
         dispatch({ type: 'SET_LOADING', payload: false });
+        console.log('Data loaded, loading set to false');
       } else {
         console.log('No user found');
         dispatch({ type: 'SET_LOADING', payload: false });
       }
       
       setIsInitialized(true);
+      console.log('=== INITIALIZE APP END ===');
     };
 
     initializeApp();
@@ -171,7 +181,7 @@ export function DesignerProvider({ children }) {
     );
 
     return () => subscription.unsubscribe();
-  }, [isInitialized]);
+  }, []); // Remove isInitialized dependency to allow re-initialization
 
   // Functions for components to use
   const addDesigner = async (name) => {

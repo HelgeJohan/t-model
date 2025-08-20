@@ -246,28 +246,36 @@ export function DesignerProvider({ children }) {
 
     initializeApp();
 
-    // Listen for auth changes
+    // Listen for auth changes - but don't load data if we already have it
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state change:', event);
         
         if (event === 'SIGNED_IN' && session?.user) {
           dispatch({ type: 'SET_USER', payload: session.user });
-          await loadDesigners();
-          await loadAssessments();
-          // Also set loading to false after auth change
-          dispatch({ type: 'SET_LOADING', payload: false });
+          
+          // Only load data if we don't already have it
+          if (state.designers.length === 0) {
+            console.log('Auth SIGNED_IN: No designers, loading data...');
+            await loadDesigners();
+            await loadAssessments();
+            dispatch({ type: 'SET_LOADING', payload: false });
+          } else {
+            console.log('Auth SIGNED_IN: Designers already loaded, skipping...');
+          }
         } else if (event === 'SIGNED_OUT') {
           dispatch({ type: 'SET_USER', payload: null });
           dispatch({ type: 'SET_DESIGNERS', payload: [] });
           dispatch({ type: 'SET_ASSESSMENTS', payload: {} });
           dispatch({ type: 'SET_LOADING', payload: false });
+        } else if (event === 'INITIAL_SESSION') {
+          console.log('Auth INITIAL_SESSION: Skipping data load (handled by getUser)');
         }
       }
     );
 
     return () => subscription.unsubscribe();
-  }, []); // Remove isInitialized dependency to allow re-initialization
+  }, []); // Keep empty dependencies to prevent re-runs
 
   // Functions for components to use
   const addDesigner = async (name) => {

@@ -951,11 +951,11 @@ const AppContent = () => {
                 </div>
                 <Subtitle style={{ textAlign: 'left', marginBottom: '0' }}>
                   Hvilke deler av brukeropplevelsesdesign behersker du. Dra i stolpene for å angi ferdighetsnivå.
-                </Subtitle>
+        </Subtitle>
               </div>
               
               <div>
-                <TModel skills={skills} onUpdateSkill={updateSkill} />
+      <TModel skills={skills} onUpdateSkill={updateSkill} />
                 
                 <div style={{ marginTop: '30px' }}>
                   <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>

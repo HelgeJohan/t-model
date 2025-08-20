@@ -429,7 +429,55 @@ export function DesignerProvider({ children }) {
   };
 
   const getDesignerAssessment = (designerId) => {
-    return state.assessments[designerId];
+    const assessment = state.assessments[designerId];
+    
+    if (!assessment) {
+      return null;
+    }
+    
+    // If assessment already has skills array, return as is
+    if (assessment.skills) {
+      return assessment;
+    }
+    
+    // If assessment has assessment_skills, reconstruct the skills array
+    if (assessment.assessment_skills && assessment.assessment_skills.length > 0) {
+      // Map skill UUIDs back to skill names and proficiency
+      const skillIdToNameMap = {
+        'e46b710d-1d7d-43da-b922-c9c9d520ccf8': 'Forretnings-analyse',
+        '6bdaf4e2-2d8e-411f-8f9e-788db20ebf12': 'Brukerinnsikt',
+        'b5a240a2-ac79-40fa-998a-16a4bf67b0f9': 'Grafisk design',
+        'a0b2f920-05f8-4925-a922-514a8a520317': 'Innholds-design',
+        '6ac0522e-107b-4998-a2de-6352c52e6b3e': 'Interaksjons-design',
+        '734fa46a-3f80-4ba6-acaa-cfee9b81d763': 'Informasjons-arkitektur',
+        '1a15abd9-0176-4076-af94-91456eda08c1': 'Brukertesting',
+        '42f096a0-3db5-47e0-83a2-245aec62dabc': 'Frontend design, UU',
+        '1e5bc6d0-8286-4be5-b1f9-d31007e5df9d': 'Prototyping',
+        '64a39e1a-6c53-4c4a-a445-8938334944ef': 'Data og trafikkanalyse'
+      };
+      
+      const reconstructedSkills = assessment.assessment_skills.map(assessmentSkill => {
+        const skillName = skillIdToNameMap[assessmentSkill.skill_id];
+        if (!skillName) {
+          console.error(`Unknown skill ID: ${assessmentSkill.skill_id}`);
+          return null;
+        }
+        
+        return {
+          name: skillName,
+          proficiency: assessmentSkill.proficiency
+        };
+      }).filter(Boolean); // Remove any null entries
+      
+      // Return assessment with reconstructed skills
+      return {
+        ...assessment,
+        skills: reconstructedSkills
+      };
+    }
+    
+    // No skills found, return assessment as is
+    return assessment;
   };
 
   const setCurrentDesigner = (designerId) => {

@@ -133,11 +133,13 @@ export function DesignerProvider({ children }) {
       if (user) {
         console.log('User found:', user.id);
         dispatch({ type: 'SET_USER', payload: user });
-        dispatch({ type: 'SET_LOADING', payload: false });
         
         // Load data sequentially
         await loadDesigners();
         await loadAssessments();
+        
+        // Set loading to false AFTER data is loaded
+        dispatch({ type: 'SET_LOADING', payload: false });
       } else {
         console.log('No user found');
         dispatch({ type: 'SET_LOADING', payload: false });
@@ -157,10 +159,13 @@ export function DesignerProvider({ children }) {
           dispatch({ type: 'SET_USER', payload: session.user });
           await loadDesigners();
           await loadAssessments();
+          // Also set loading to false after auth change
+          dispatch({ type: 'SET_LOADING', payload: false });
         } else if (event === 'SIGNED_OUT') {
           dispatch({ type: 'SET_USER', payload: null });
           dispatch({ type: 'SET_DESIGNERS', payload: [] });
           dispatch({ type: 'SET_ASSESSMENTS', payload: {} });
+          dispatch({ type: 'SET_LOADING', payload: false });
         }
       }
     );

@@ -157,7 +157,7 @@ export function DesignerProvider({ children }) {
       dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
       console.log('🏁 === LOADING USER DATA END ===');
     }
-  }, [state.designers.length, hasLoadedData, state.user]);
+  }, []); // Remove all dependencies to prevent infinite loops
 
   // Create a function to check if we should load data
   const shouldLoadData = useCallback(() => {
@@ -254,7 +254,7 @@ export function DesignerProvider({ children }) {
     );
 
     return () => subscription.unsubscribe();
-  }, [loadUserData, shouldLoadData]); // Add proper dependencies
+  }, []); // Remove all dependencies to prevent infinite loops
 
   // New function to load assessments without blocking the UI
   const loadAssessmentsInBackground = async (designers) => {

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 
 const DesignerContext = createContext();
@@ -77,14 +77,15 @@ function designerReducer(state, action) {
 export function DesignerProvider({ children }) {
   const [state, dispatch] = useReducer(designerReducer, initialState);
   const [isLoadingData, setIsLoadingData] = useState(false);
-  const [hasLoadedData, setHasLoadedData] = useState(false); // Add this line
+  const [hasLoadedData, setHasLoadedData] = useState(false);
+  const dataLoadPromise = useRef(null); // Add this line
 
   // Check for existing user session on app load
   useEffect(() => {
     const getUser = async () => {
       // Prevent multiple simultaneous data loads
-      if (isLoadingData || hasLoadedData) {
-        console.log('Data loading already in progress or completed, skipping...');
+      if (isLoadingData || hasLoadedData || dataLoadPromise.current) {
+        console.log('Data loading already in progress, completed, or promise exists, skipping...');
         return;
       }
 
@@ -100,9 +101,14 @@ export function DesignerProvider({ children }) {
         if (state.designers.length === 0 && !hasLoadedData) {
           console.log('No designers in state, loading data...');
           setIsLoadingData(true);
-          await loadUserData(user.id);
+          
+          // Store the promise to prevent duplicate calls
+          dataLoadPromise.current = loadUserData(user.id);
+          await dataLoadPromise.current;
+          
           setIsLoadingData(false);
-          setHasLoadedData(true); // Mark as completed
+          setHasLoadedData(true);
+          dataLoadPromise.current = null;
         } else {
           console.log('Designers already in state or data already loaded, skipping load...');
         }
@@ -122,22 +128,28 @@ export function DesignerProvider({ children }) {
         if (session?.user) {
           dispatch({ type: 'SET_USER', payload: session.user });
           
-          // Only load data if we haven't already
-          if (state.designers.length === 0 && !hasLoadedData) {
+          // Only load data if we haven't already AND no promise is running
+          if (state.designers.length === 0 && !hasLoadedData && !dataLoadPromise.current) {
             console.log('Auth change: No designers in state, loading data...');
             setIsLoadingData(true);
-            await loadUserData(session.user.id);
+            
+            // Store the promise to prevent duplicate calls
+            dataLoadPromise.current = loadUserData(session.user.id);
+            await dataLoadPromise.current;
+            
             setIsLoadingData(false);
-            setHasLoadedData(true); // Mark as completed
+            setHasLoadedData(true);
+            dataLoadPromise.current = null;
           } else {
-            console.log('Auth change: Designers already in state or data already loaded, skipping load...');
+            console.log('Auth change: Data already loading or loaded, skipping...');
           }
         } else {
           console.log('Auth change: No session, clearing state...');
           dispatch({ type: 'SET_USER', payload: null });
           dispatch({ type: 'SET_DESIGNERS', payload: [] });
           dispatch({ type: 'SET_ASSESSMENTS', payload: {} });
-          setHasLoadedData(false); // Reset flag
+          setHasLoadedData(false);
+          dataLoadPromise.current = null;
         }
       }
     );

@@ -8,7 +8,9 @@ const initialState = {
   currentDesigner: null,
   assessments: {},
   user: null,
-  loading: true
+  loading: true,
+  designersLoading: false, // Add this line
+  assessmentsLoading: false // Add this line
 };
 
 function designerReducer(state, action) {
@@ -61,6 +63,12 @@ function designerReducer(state, action) {
         }
       };
     
+    case 'SET_DESIGNERS_LOADING':
+      return { ...state, designersLoading: action.payload };
+    
+    case 'SET_ASSESSMENTS_LOADING':
+      return { ...state, assessmentsLoading: action.payload };
+    
     default:
       return state;
   }
@@ -104,24 +112,16 @@ export function DesignerProvider({ children }) {
     console.log('=== LOADING USER DATA ===');
     console.log('User ID:', userId);
     
+    dispatch({ type: 'SET_DESIGNERS_LOADING', payload: true }); // Add this line
+    
     try {
-      // Load ALL designers (no user filtering)
+      // Load designers first (fast)
       console.log('Fetching designers from database...');
       
-      // Add timeout to prevent hanging
-      const designersPromise = supabase
+      const { data: designers, error: designersError } = await supabase
         .from('designers')
         .select('*')
         .order('name');
-      
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Designers fetch timeout')), 30000) // Increased to 30 seconds
-      );
-      
-      const { data: designers, error: designersError } = await Promise.race([
-        designersPromise,
-        timeoutPromise
-      ]);
 
       console.log('Designers response:', { designers, designersError });
 
@@ -131,61 +131,67 @@ export function DesignerProvider({ children }) {
       }
 
       if (designers) {
-        console.log('Setting designers in state:', designers);
+        console.log('Setting designers in state immediately:', designers);
         dispatch({ type: 'SET_DESIGNERS', payload: designers });
         
-        // Load assessments for each designer
-        const assessments = {};
-        for (const designer of designers) {
-          console.log('Loading assessment for designer:', designer.name);
-          const { data: assessment, error: assessmentError } = await supabase
-            .from('assessments')
-            .select(`
-              *,
-              assessment_skills (
-                skill_id,
-                proficiency,
-                notes
-              )
-            `)
-            .eq('designer_id', designer.id)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-          console.log('Assessment for', designer.name, ':', assessment);
-
-          if (!assessmentError && assessment && assessment.length > 0) {
-            const latestAssessment = assessment[0];
-            const skills = latestAssessment.assessment_skills.map(as => ({
-              name: getSkillName(as.skill_id),
-              proficiency: as.proficiency
-            }));
-            
-            assessments[designer.id] = {
-              skills,
-              timestamp: latestAssessment.created_at
-            };
-          }
-        }
-        
-        console.log('Setting assessments in state:', assessments);
-        dispatch({ type: 'SET_ASSESSMENTS', payload: assessments });
+        // Load assessments in background (don't block UI)
+        loadAssessmentsInBackground(designers);
       } else {
         console.log('No designers found in database');
       }
     } catch (error) {
       console.error('Error loading user data:', error);
       console.error('Error details:', error.message, error.code, error.details);
+    } finally {
+      dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false }); // Add this line
+    }
+  };
+
+  // New function to load assessments without blocking the UI
+  const loadAssessmentsInBackground = async (designers) => {
+    console.log('Loading assessments in background...');
+    
+    try {
+      const assessments = {};
       
-      // If there's an error, try to load designers again after a delay
-      if (error.message.includes('timeout')) {
-        console.log('Retrying designers load after timeout...');
-        setTimeout(() => {
-          if (state.user) {
-            loadUserData(state.user.id);
-          }
-        }, 2000);
+      for (const designer of designers) {
+        console.log('Loading assessment for designer:', designer.name);
+        
+        const { data: assessment, error: assessmentError } = await supabase
+          .from('assessments')
+          .select(`
+            *,
+            assessment_skills (
+              skill_id,
+              proficiency,
+              notes
+            )
+          `)
+          .eq('designer_id', designer.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        console.log('Assessment for', designer.name, ':', assessment);
+
+        if (!assessmentError && assessment && assessment.length > 0) {
+          const latestAssessment = assessment[0];
+          const skills = latestAssessment.assessment_skills.map(as => ({
+            name: getSkillName(as.skill_id),
+            proficiency: as.proficiency
+          }));
+          
+          assessments[designer.id] = {
+            skills,
+            timestamp: latestAssessment.created_at
+          };
+        }
       }
+      
+      console.log('Setting assessments in state:', assessments);
+      dispatch({ type: 'SET_ASSESSMENTS', payload: assessments });
+      
+    } catch (error) {
+      console.error('Error loading assessments in background:', error);
     }
   };
 

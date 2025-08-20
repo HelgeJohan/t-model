@@ -115,7 +115,7 @@ export function DesignerProvider({ children }) {
         .order('name');
       
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Designers fetch timeout')), 10000)
+        setTimeout(() => reject(new Error('Designers fetch timeout')), 30000) // Increased to 30 seconds
       );
       
       const { data: designers, error: designersError } = await Promise.race([
@@ -176,6 +176,16 @@ export function DesignerProvider({ children }) {
     } catch (error) {
       console.error('Error loading user data:', error);
       console.error('Error details:', error.message, error.code, error.details);
+      
+      // If there's an error, try to load designers again after a delay
+      if (error.message.includes('timeout')) {
+        console.log('Retrying designers load after timeout...');
+        setTimeout(() => {
+          if (state.user) {
+            loadUserData(state.user.id);
+          }
+        }, 2000);
+      }
     }
   };
 

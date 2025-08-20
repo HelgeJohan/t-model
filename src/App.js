@@ -322,8 +322,9 @@ const AppContent = () => {
               <Title>T-modell for ferdigheter med brukeropplevelsesdesign</Title>
               <Subtitle>Hvilke deler av brukeropplevelsesdesign behersker du og dine kolleger</Subtitle>
               
-              <div style={{ textAlign: 'center', marginBottom: '30px', marginTop: '15px' }}>
-                <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', alignItems: 'center' }}>
+              {/* Change from center alignment to left alignment */}
+              <div style={{ textAlign: 'left', marginBottom: '30px', marginTop: '15px' }}>
+                <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                   <DesignerRegistration onDesignerAdded={handleDesignerAdded} />
                   <button
                     onClick={() => exportAllAssessments(designers, getDesignerAssessment)}

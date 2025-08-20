@@ -87,17 +87,25 @@ export function DesignerProvider({ children }) {
         return;
       }
 
+      console.log('=== GETTING USER ===');
       const { data: { user } } = await supabase.auth.getUser();
+      console.log('User result:', user);
+      
       if (user) {
+        console.log('User authenticated, setting user state...');
         dispatch({ type: 'SET_USER', payload: user });
         
         // Only load data if we haven't already
         if (state.designers.length === 0) {
+          console.log('No designers in state, loading data...');
           setIsLoadingData(true);
           await loadUserData(user.id);
           setIsLoadingData(false);
+        } else {
+          console.log('Designers already in state, skipping load...');
         }
       } else {
+        console.log('No user found, setting loading to false...');
         dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
@@ -107,16 +115,22 @@ export function DesignerProvider({ children }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state change:', event, session?.user?.id);
+        
         if (session?.user) {
           dispatch({ type: 'SET_USER', payload: session.user });
           
           // Only load data if we haven't already
           if (state.designers.length === 0) {
+            console.log('Auth change: No designers in state, loading data...');
             setIsLoadingData(true);
             await loadUserData(session.user.id);
             setIsLoadingData(false);
+          } else {
+            console.log('Auth change: Designers already in state, skipping load...');
           }
         } else {
+          console.log('Auth change: No session, clearing state...');
           dispatch({ type: 'SET_USER', payload: null });
           dispatch({ type: 'SET_DESIGNERS', payload: [] });
           dispatch({ type: 'SET_ASSESSMENTS', payload: {} });
@@ -143,10 +157,20 @@ export function DesignerProvider({ children }) {
       // Load designers first (fast)
       console.log('Fetching designers from database...');
       
-      const { data: designers, error: designersError } = await supabase
+      // Add timeout to prevent hanging on refresh
+      const designersPromise = supabase
         .from('designers')
         .select('*')
         .order('name');
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Designers fetch timeout on refresh')), 10000)
+      );
+      
+      const { data: designers, error: designersError } = await Promise.race([
+        designersPromise,
+        timeoutPromise
+      ]);
 
       console.log('Designers response:', { designers, designersError });
 
@@ -167,6 +191,16 @@ export function DesignerProvider({ children }) {
     } catch (error) {
       console.error('Error loading user data:', error);
       console.error('Error details:', error.message, error.code, error.details);
+      
+      // If there's a timeout, try to load designers again after a delay
+      if (error.message.includes('timeout')) {
+        console.log('Retrying designers load after timeout...');
+        setTimeout(() => {
+          if (state.user && state.designers.length === 0) {
+            loadUserData(state.user.id);
+          }
+        }, 2000);
+      }
     } finally {
       dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
     }

@@ -58,6 +58,8 @@ export function DesignerProvider({ children }) {
 
   // Simple function to load designers
   const loadDesigners = async () => {
+    console.log('=== LOAD DESIGNERS START ===');
+    
     if (state.designers.length > 0) {
       console.log('Designers already loaded, skipping...');
       return;
@@ -67,21 +69,33 @@ export function DesignerProvider({ children }) {
     dispatch({ type: 'SET_DESIGNERS_LOADING', payload: true });
 
     try {
+      console.log('About to call supabase.from...');
       const { data: designers, error } = await supabase
         .from('designers')
         .select('*')
         .order('name');
 
-      if (error) throw error;
+      console.log('Supabase response received:', { designers, error });
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       if (designers) {
-        console.log('Designers loaded:', designers.length);
+        console.log('Designers loaded successfully:', designers.length);
+        console.log('Designer names:', designers.map(d => d.name));
         dispatch({ type: 'SET_DESIGNERS', payload: designers });
+      } else {
+        console.log('No designers returned from database');
       }
     } catch (error) {
       console.error('Error loading designers:', error);
+      console.error('Error details:', error.message, error.code, error.details);
     } finally {
+      console.log('Setting designersLoading to false');
       dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
+      console.log('=== LOAD DESIGNERS END ===');
     }
   };
 

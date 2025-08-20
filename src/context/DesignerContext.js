@@ -356,22 +356,45 @@ export function DesignerProvider({ children }) {
 
       console.log('Assessment created:', assessment);
 
-      // Then, create the assessment skills using the extracted array
-      const assessmentSkills = skillsArray.map(skill => ({
-        assessment_id: assessment.id,
-        skill_id: skill.id || skill.name, // Handle both cases
-        proficiency: skill.proficiency
-      }));
+      // Create assessment skills with the correct skill UUIDs from your skills table
+      const assessmentSkills = skillsArray.map(skill => {
+        // Map skill names to UUIDs based on your skills table
+        const skillIdMap = {
+          'Forretnings-analyse': 'e46b710d-1d7d-43da-b922-c9c9d520ccf8',
+          'Brukerinnsikt': '6bdaf4e2-2d8e-411f-8f9e-788db20ebf12',
+          'Grafisk design': 'b5a240a2-ac79-40fa-998a-16a4bf67b0f9',
+          'Innholds-design': 'a0b2f920-05f8-4925-a922-514a8a520317',
+          'Interaksjons-design': '6ac0522e-107b-4998-a2de-6352c52e6b3e',
+          'Informasjons-arkitektur': '734fa46a-3f80-4ba6-acaa-cfee9b81d763',
+          'Brukertesting': '1a15abd9-0176-4076-af94-91456eda08c1',
+          'Frontend design, UU': '42f096a0-3db5-47e0-83a2-245aec62dabc',
+          'Prototyping': '1e5bc6d0-8286-4be5-b1f9-d31007e5df9d',
+          'Data og trafikkanalyse': '64a39e1a-6c53-4c4a-a445-8938334944ef'
+        };
+        
+        const skillId = skillIdMap[skill.name];
+        
+        if (!skillId) {
+          console.error(`Unknown skill name: ${skill.name}`);
+          throw new Error(`Unknown skill name: ${skill.name}`);
+        }
+        
+        return {
+          assessment_id: assessment.id,
+          skill_id: skillId, // Use the correct UUID from your skills table
+          proficiency: skill.proficiency
+        };
+      });
 
       console.log('Creating assessment skills:', assessmentSkills);
 
-      const { error: skillsError } = await supabase
+      const { error: assessmentSkillsError } = await supabase
         .from('assessment_skills')
         .insert(assessmentSkills);
 
-      if (skillsError) {
-        console.error('Error creating assessment skills:', skillsError);
-        throw skillsError;
+      if (assessmentSkillsError) {
+        console.error('Error creating assessment skills:', assessmentSkillsError);
+        throw assessmentSkillsError;
       }
 
       console.log('Assessment skills created successfully');

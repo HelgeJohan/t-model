@@ -358,6 +358,8 @@ export function DesignerProvider({ children }) {
 
       // Create assessment skills with the correct skill UUIDs from your skills table
       const assessmentSkills = skillsArray.map(skill => {
+        console.log('Processing skill:', skill);
+        
         // Map skill names to UUIDs based on your skills table
         const skillIdMap = {
           'Forretnings-analyse': 'e46b710d-1d7d-43da-b922-c9c9d520ccf8',
@@ -373,20 +375,24 @@ export function DesignerProvider({ children }) {
         };
         
         const skillId = skillIdMap[skill.name];
+        console.log(`Skill name: "${skill.name}" -> UUID: "${skillId}"`);
         
         if (!skillId) {
           console.error(`Unknown skill name: ${skill.name}`);
           throw new Error(`Unknown skill name: ${skill.name}`);
         }
         
-        return {
+        const assessmentSkill = {
           assessment_id: assessment.id,
           skill_id: skillId, // Use the correct UUID from your skills table
           proficiency: skill.proficiency
         };
+        
+        console.log('Created assessment skill:', assessmentSkill);
+        return assessmentSkill;
       });
 
-      console.log('Creating assessment skills:', assessmentSkills);
+      console.log('Final assessment skills array:', assessmentSkills);
 
       const { error: assessmentSkillsError } = await supabase
         .from('assessment_skills')

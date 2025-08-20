@@ -311,12 +311,27 @@ export function DesignerProvider({ children }) {
     try {
       console.log('=== SAVE ASSESSMENT START ===');
       console.log('Designer ID:', designerId);
-      console.log('Skills:', skills);
+      console.log('Skills parameter:', skills);
+      console.log('Skills type:', typeof skills);
+      console.log('Skills keys:', Object.keys(skills));
       console.log('Current user:', state.user);
       
       // Check if we have a user
       if (!state.user) {
         throw new Error('No user found - cannot save assessment');
+      }
+      
+      // Extract the actual skills array from the parameter
+      let skillsArray;
+      if (skills && skills.skills && Array.isArray(skills.skills)) {
+        skillsArray = skills.skills;
+        console.log('Extracted skills array:', skillsArray);
+      } else if (Array.isArray(skills)) {
+        skillsArray = skills;
+        console.log('Skills is already an array:', skillsArray);
+      } else {
+        console.error('Invalid skills format:', skills);
+        throw new Error('Invalid skills format - expected array or object with skills property');
       }
       
       // Create the assessment with your exact schema
@@ -341,8 +356,8 @@ export function DesignerProvider({ children }) {
 
       console.log('Assessment created:', assessment);
 
-      // Then, create the assessment skills
-      const assessmentSkills = skills.map(skill => ({
+      // Then, create the assessment skills using the extracted array
+      const assessmentSkills = skillsArray.map(skill => ({
         assessment_id: assessment.id,
         skill_id: skill.id || skill.name, // Handle both cases
         proficiency: skill.proficiency

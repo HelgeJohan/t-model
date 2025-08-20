@@ -71,26 +71,67 @@ export function DesignerProvider({ children }) {
     try {
       console.log('About to call supabase.from...');
       
-      // Add timeout to prevent hanging
-      const designersPromise = supabase
-        .from('designers')
-        .select('*')
-        .order('name');
+      // Try multiple approaches to load designers
+      let designers = null;
+      let error = null;
       
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Designers query timeout')), 10000)
-      );
-      
-      console.log('Executing query with timeout...');
-      const { data: designers, error } = await Promise.race([
-        designersPromise,
-        timeoutPromise
-      ]);
-
-      console.log('Supabase response received:', { designers, error });
+      // Approach 1: Try with timeout
+      try {
+        console.log('Trying approach 1: Normal query with timeout...');
+        const designersPromise = supabase
+          .from('designers')
+          .select('*')
+          .order('name');
+        
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Designers query timeout')), 5000)
+        );
+        
+        const result = await Promise.race([
+          designersPromise,
+          timeoutPromise
+        ]);
+        
+        designers = result.data;
+        error = result.error;
+        console.log('Approach 1 succeeded:', { designers, error });
+      } catch (timeoutError) {
+        console.log('Approach 1 failed (timeout):', timeoutError.message);
+        
+        // Approach 2: Try without ordering (faster)
+        try {
+          console.log('Trying approach 2: Query without ordering...');
+          const result = await supabase
+            .from('designers')
+            .select('*')
+            .limit(100);
+          
+          designers = result.data;
+          error = result.error;
+          console.log('Approach 2 succeeded:', { designers, error });
+        } catch (simpleError) {
+          console.log('Approach 2 failed:', simpleError.message);
+          
+          // Approach 3: Try minimal query
+          try {
+            console.log('Trying approach 3: Minimal query (just IDs)...');
+            const result = await supabase
+              .from('designers')
+              .select('id, name')
+              .limit(10);
+            
+            designers = result.data;
+            error = result.error;
+            console.log('Approach 3 succeeded:', { designers, error });
+          } catch (minimalError) {
+            console.log('Approach 3 failed:', minimalError.message);
+            throw minimalError;
+          }
+        }
+      }
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('All approaches failed, final error:', error);
         throw error;
       }
 
@@ -99,26 +140,15 @@ export function DesignerProvider({ children }) {
         console.log('Designer names:', designers.map(d => d.name));
         dispatch({ type: 'SET_DESIGNERS', payload: designers });
       } else {
-        console.log('No designers returned from database');
+        console.log('No designers returned from any approach');
       }
     } catch (error) {
       console.error('Error loading designers:', error);
       console.error('Error details:', error.message, error.code, error.details);
       
-      // If timeout, try a simple connection test
-      if (error.message.includes('timeout')) {
-        console.log('Query timed out, testing basic connection...');
-        try {
-          const { data: testData, error: testError } = await supabase
-            .from('designers')
-            .select('id')
-            .limit(1);
-          
-          console.log('Connection test result:', { testData, testError });
-        } catch (testErr) {
-          console.error('Connection test failed:', testErr);
-        }
-      }
+      // Set loading to false even on error
+      dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
+      dispatch({ type: 'SET_LOADING', payload: false });
     } finally {
       console.log('Setting designersLoading to false');
       dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });

@@ -70,10 +70,22 @@ export function DesignerProvider({ children }) {
 
     try {
       console.log('About to call supabase.from...');
-      const { data: designers, error } = await supabase
+      
+      // Add timeout to prevent hanging
+      const designersPromise = supabase
         .from('designers')
         .select('*')
         .order('name');
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Designers query timeout')), 10000)
+      );
+      
+      console.log('Executing query with timeout...');
+      const { data: designers, error } = await Promise.race([
+        designersPromise,
+        timeoutPromise
+      ]);
 
       console.log('Supabase response received:', { designers, error });
 
@@ -92,6 +104,21 @@ export function DesignerProvider({ children }) {
     } catch (error) {
       console.error('Error loading designers:', error);
       console.error('Error details:', error.message, error.code, error.details);
+      
+      // If timeout, try a simple connection test
+      if (error.message.includes('timeout')) {
+        console.log('Query timed out, testing basic connection...');
+        try {
+          const { data: testData, error: testError } = await supabase
+            .from('designers')
+            .select('id')
+            .limit(1);
+          
+          console.log('Connection test result:', { testData, testError });
+        } catch (testErr) {
+          console.error('Connection test failed:', testErr);
+        }
+      }
     } finally {
       console.log('Setting designersLoading to false');
       dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });

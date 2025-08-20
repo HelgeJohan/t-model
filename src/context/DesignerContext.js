@@ -76,14 +76,15 @@ function designerReducer(state, action) {
 
 export function DesignerProvider({ children }) {
   const [state, dispatch] = useReducer(designerReducer, initialState);
-  const [isLoadingData, setIsLoadingData] = useState(false); // Add this line
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [hasLoadedData, setHasLoadedData] = useState(false); // Add this line
 
   // Check for existing user session on app load
   useEffect(() => {
     const getUser = async () => {
       // Prevent multiple simultaneous data loads
-      if (isLoadingData) {
-        console.log('Data loading already in progress, skipping...');
+      if (isLoadingData || hasLoadedData) {
+        console.log('Data loading already in progress or completed, skipping...');
         return;
       }
 
@@ -96,13 +97,14 @@ export function DesignerProvider({ children }) {
         dispatch({ type: 'SET_USER', payload: user });
         
         // Only load data if we haven't already
-        if (state.designers.length === 0) {
+        if (state.designers.length === 0 && !hasLoadedData) {
           console.log('No designers in state, loading data...');
           setIsLoadingData(true);
           await loadUserData(user.id);
           setIsLoadingData(false);
+          setHasLoadedData(true); // Mark as completed
         } else {
-          console.log('Designers already in state, skipping load...');
+          console.log('Designers already in state or data already loaded, skipping load...');
         }
       } else {
         console.log('No user found, setting loading to false...');
@@ -121,19 +123,21 @@ export function DesignerProvider({ children }) {
           dispatch({ type: 'SET_USER', payload: session.user });
           
           // Only load data if we haven't already
-          if (state.designers.length === 0) {
+          if (state.designers.length === 0 && !hasLoadedData) {
             console.log('Auth change: No designers in state, loading data...');
             setIsLoadingData(true);
             await loadUserData(session.user.id);
             setIsLoadingData(false);
+            setHasLoadedData(true); // Mark as completed
           } else {
-            console.log('Auth change: Designers already in state, skipping load...');
+            console.log('Auth change: Designers already in state or data already loaded, skipping load...');
           }
         } else {
           console.log('Auth change: No session, clearing state...');
           dispatch({ type: 'SET_USER', payload: null });
           dispatch({ type: 'SET_DESIGNERS', payload: [] });
           dispatch({ type: 'SET_ASSESSMENTS', payload: {} });
+          setHasLoadedData(false); // Reset flag
         }
       }
     );
@@ -146,8 +150,8 @@ export function DesignerProvider({ children }) {
     console.log('User ID:', userId);
     
     // Check if we already have designers
-    if (state.designers.length > 0) {
-      console.log('Designers already loaded, skipping...');
+    if (state.designers.length > 0 || hasLoadedData) {
+      console.log('Designers already loaded or data already fetched, skipping...');
       return;
     }
     
@@ -164,7 +168,7 @@ export function DesignerProvider({ children }) {
         .order('name');
       
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Designers fetch timeout on refresh')), 10000)
+        setTimeout(() => reject(new Error('Designers fetch timeout on refresh')), 5000) // Reduced to 5 seconds
       );
       
       const { data: designers, error: designersError } = await Promise.race([
@@ -196,10 +200,10 @@ export function DesignerProvider({ children }) {
       if (error.message.includes('timeout')) {
         console.log('Retrying designers load after timeout...');
         setTimeout(() => {
-          if (state.user && state.designers.length === 0) {
+          if (state.user && state.designers.length === 0 && !hasLoadedData) {
             loadUserData(state.user.id);
           }
-        }, 2000);
+        }, 1000); // Reduced retry delay
       }
     } finally {
       dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });

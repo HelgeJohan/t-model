@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
 const DesignerContext = createContext();
@@ -91,99 +91,8 @@ export function DesignerProvider({ children }) {
     console.log('========================');
   };
 
-  // Check for existing user session on app load
-  useEffect(() => {
-    const getUser = async () => {
-      logState('getUser START');
-      
-      // Prevent multiple simultaneous data loads
-      if (isLoadingData || hasLoadedData || dataLoadPromise.current) {
-        console.log('🚫 BLOCKED: Data loading already in progress, completed, or promise exists');
-        logState('getUser BLOCKED');
-        return;
-      }
-
-      console.log('✅ PROCEEDING: getUser will load data');
-      console.log('=== GETTING USER ===');
-      const { data: { user } } = await supabase.auth.getUser();
-      console.log('User result:', user);
-      
-      if (user) {
-        console.log('User authenticated, setting user state...');
-        dispatch({ type: 'SET_USER', payload: user });
-        
-        // Only load data if we haven't already
-        if (state.designers.length === 0 && !hasLoadedData) {
-          console.log('✅ LOADING: No designers in state, loading data...');
-          setIsLoadingData(true);
-          
-          // Store the promise to prevent duplicate calls
-          dataLoadPromise.current = loadUserData(user.id);
-          console.log('🔒 PROMISE LOCKED:', dataLoadPromise.current);
-          
-          await dataLoadPromise.current;
-          
-          setIsLoadingData(false);
-          setHasLoadedData(true);
-          dataLoadPromise.current = null;
-          console.log('🔓 PROMISE UNLOCKED');
-        } else {
-          console.log('⏭️ SKIPPING: Designers already in state or data already loaded');
-        }
-      } else {
-        console.log('No user found, setting loading to false...');
-        dispatch({ type: 'SET_LOADING', payload: false });
-      }
-      
-      logState('getUser END');
-    };
-
-    getUser();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log(`🔄 AUTH EVENT: ${event} for user: ${session?.user?.id}`);
-        logState(`AUTH_${event}_START`);
-        
-        if (session?.user) {
-          dispatch({ type: 'SET_USER', payload: session.user });
-          
-          // Only load data if we haven't already AND no promise is running
-          if (state.designers.length === 0 && !hasLoadedData && !dataLoadPromise.current) {
-            console.log('✅ AUTH LOADING: No designers in state, loading data...');
-            setIsLoadingData(true);
-            
-            // Store the promise to prevent duplicate calls
-            dataLoadPromise.current = loadUserData(session.user.id);
-            console.log('🔒 AUTH PROMISE LOCKED:', dataLoadPromise.current);
-            
-            await dataLoadPromise.current;
-            
-            setIsLoadingData(false);
-            setHasLoadedData(true);
-            dataLoadPromise.current = null;
-            console.log('🔓 AUTH PROMISE UNLOCKED');
-          } else {
-            console.log('⏭️ AUTH SKIPPING: Data already loading or loaded');
-          }
-        } else {
-          console.log('Auth change: No session, clearing state...');
-          dispatch({ type: 'SET_USER', payload: null });
-          dispatch({ type: 'SET_DESIGNERS', payload: [] });
-          dispatch({ type: 'SET_ASSESSMENTS', payload: {} });
-          setHasLoadedData(false);
-          dataLoadPromise.current = null;
-        }
-        
-        logState(`AUTH_${event}_END`);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const loadUserData = async (userId) => {
+  // Move loadUserData to useCallback to prevent recreation
+  const loadUserData = useCallback(async (userId) => {
     console.log('🚀 === LOADING USER DATA START ===');
     console.log('User ID:', userId);
     logState('loadUserData START');
@@ -248,7 +157,104 @@ export function DesignerProvider({ children }) {
       dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
       console.log('🏁 === LOADING USER DATA END ===');
     }
-  };
+  }, [state.designers.length, hasLoadedData, state.user]);
+
+  // Create a function to check if we should load data
+  const shouldLoadData = useCallback(() => {
+    return state.designers.length === 0 && !hasLoadedData && !dataLoadPromise.current;
+  }, [state.designers.length, hasLoadedData]);
+
+  // Check for existing user session on app load
+  useEffect(() => {
+    const getUser = async () => {
+      logState('getUser START');
+      
+      // Prevent multiple simultaneous data loads
+      if (isLoadingData || hasLoadedData || dataLoadPromise.current) {
+        console.log('🚫 BLOCKED: Data loading already in progress, completed, or promise exists');
+        logState('getUser BLOCKED');
+        return;
+      }
+
+      console.log('✅ PROCEEDING: getUser will load data');
+      console.log('=== GETTING USER ===');
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('User result:', user);
+      
+      if (user) {
+        console.log('User authenticated, setting user state...');
+        dispatch({ type: 'SET_USER', payload: user });
+        
+        // Only load data if we haven't already
+        if (shouldLoadData()) {
+          console.log('✅ LOADING: No designers in state, loading data...');
+          setIsLoadingData(true);
+          
+          // Store the promise to prevent duplicate calls
+          dataLoadPromise.current = loadUserData(user.id);
+          console.log('🔒 PROMISE LOCKED:', dataLoadPromise.current);
+          
+          await dataLoadPromise.current;
+          
+          setIsLoadingData(false);
+          setHasLoadedData(true);
+          dataLoadPromise.current = null;
+          console.log('🔓 PROMISE UNLOCKED');
+        } else {
+          console.log('⏭️ SKIPPING: Designers already in state or data already loaded');
+        }
+      } else {
+        console.log('No user found, setting loading to false...');
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+      
+      logState('getUser END');
+    };
+
+    getUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log(`🔄 AUTH EVENT: ${event} for user: ${session?.user?.id}`);
+        logState(`AUTH_${event}_START`);
+        
+        if (session?.user) {
+          dispatch({ type: 'SET_USER', payload: session.user });
+          
+          // Only load data if we haven't already AND no promise is running
+          if (shouldLoadData()) {
+            console.log('✅ AUTH LOADING: No designers in state, loading data...');
+            setIsLoadingData(true);
+            
+            // Store the promise to prevent duplicate calls
+            dataLoadPromise.current = loadUserData(session.user.id);
+            console.log('🔒 AUTH PROMISE LOCKED:', dataLoadPromise.current);
+            
+            await dataLoadPromise.current;
+            
+            setIsLoadingData(false);
+            setHasLoadedData(true);
+            dataLoadPromise.current = null;
+            console.log('🔓 AUTH PROMISE UNLOCKED');
+          } else {
+            console.log('⏭️ AUTH SKIPPING: Data already loading or loaded');
+          }
+        } else {
+          console.log('Auth change: No session, clearing state...');
+          dispatch({ type: 'SET_USER', payload: null });
+          dispatch({ type: 'SET_DESIGNERS', payload: [] });
+          dispatch({ type: 'SET_ASSESSMENTS', payload: {} });
+          setHasLoadedData(false);
+          dataLoadPromise.current = null;
+        }
+        
+        logState(`AUTH_${event}_END`);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [loadUserData, shouldLoadData]); // Add proper dependencies
 
   // New function to load assessments without blocking the UI
   const loadAssessmentsInBackground = async (designers) => {

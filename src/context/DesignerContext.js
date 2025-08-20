@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
 const DesignerContext = createContext();
@@ -76,14 +76,27 @@ function designerReducer(state, action) {
 
 export function DesignerProvider({ children }) {
   const [state, dispatch] = useReducer(designerReducer, initialState);
+  const [isLoadingData, setIsLoadingData] = useState(false); // Add this line
 
   // Check for existing user session on app load
   useEffect(() => {
     const getUser = async () => {
+      // Prevent multiple simultaneous data loads
+      if (isLoadingData) {
+        console.log('Data loading already in progress, skipping...');
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         dispatch({ type: 'SET_USER', payload: user });
-        await loadUserData(user.id);
+        
+        // Only load data if we haven't already
+        if (state.designers.length === 0) {
+          setIsLoadingData(true);
+          await loadUserData(user.id);
+          setIsLoadingData(false);
+        }
       } else {
         dispatch({ type: 'SET_LOADING', payload: false });
       }
@@ -96,7 +109,13 @@ export function DesignerProvider({ children }) {
       async (event, session) => {
         if (session?.user) {
           dispatch({ type: 'SET_USER', payload: session.user });
-          await loadUserData(session.user.id);
+          
+          // Only load data if we haven't already
+          if (state.designers.length === 0) {
+            setIsLoadingData(true);
+            await loadUserData(session.user.id);
+            setIsLoadingData(false);
+          }
         } else {
           dispatch({ type: 'SET_USER', payload: null });
           dispatch({ type: 'SET_DESIGNERS', payload: [] });
@@ -106,13 +125,19 @@ export function DesignerProvider({ children }) {
     );
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, []); // Remove dependencies that cause re-runs
 
   const loadUserData = async (userId) => {
     console.log('=== LOADING USER DATA ===');
     console.log('User ID:', userId);
     
-    dispatch({ type: 'SET_DESIGNERS_LOADING', payload: true }); // Add this line
+    // Check if we already have designers
+    if (state.designers.length > 0) {
+      console.log('Designers already loaded, skipping...');
+      return;
+    }
+    
+    dispatch({ type: 'SET_DESIGNERS_LOADING', payload: true });
     
     try {
       // Load designers first (fast)
@@ -130,7 +155,7 @@ export function DesignerProvider({ children }) {
         throw designersError;
       }
 
-      if (designers) {
+      if (designers && designers.length > 0) {
         console.log('Setting designers in state immediately:', designers);
         dispatch({ type: 'SET_DESIGNERS', payload: designers });
         
@@ -143,7 +168,7 @@ export function DesignerProvider({ children }) {
       console.error('Error loading user data:', error);
       console.error('Error details:', error.message, error.code, error.details);
     } finally {
-      dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false }); // Add this line
+      dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
     }
   };
 

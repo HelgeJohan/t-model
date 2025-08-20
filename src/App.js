@@ -294,6 +294,11 @@ const AppContent = () => {
     }
   };
 
+  const handleDesignerAdded = (designer) => {
+    console.log('Designer added:', designer);
+    // The DesignerContext will handle updating the state
+  };
+
   return (
     <AppContainer>
       {loading ? (
@@ -317,64 +322,32 @@ const AppContent = () => {
               <Title>T-modell for ferdigheter med brukeropplevelsesdesign</Title>
               <Subtitle>Hvilke deler av brukeropplevelsesdesign behersker du og dine kolleger</Subtitle>
               
-              <div style={{ textAlign: 'left', marginBottom: '70px', marginTop: '15px' }}>
-                <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-start', alignItems: 'center' }}>
-                  <AddDesignerButton onClick={() => setShowRegistration(true)}>
-                    <svg 
-                      style={{ 
-                        width: '20px', 
-                        height: '20px', 
-                        marginRight: '8px',
-                        fill: '#777777'
-                      }}
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+              <div style={{ textAlign: 'center', marginBottom: '30px', marginTop: '15px' }}>
+                <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', alignItems: 'center' }}>
+                  <DesignerRegistration onDesignerAdded={handleDesignerAdded} />
+                  <button
+                    onClick={() => exportAllAssessments(designers, getDesignerAssessment)}
+                    style={{
+                      background: 'white',
+                      border: 'none',
+                      color: '#333333',
+                      padding: '12px 24px',
+                      borderRadius: '8px',
+                      fontSize: '1rem',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: '0.2s',
+                      height: '35px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', marginRight: '8px', fill: 'currentcolor' }}>
+                      <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c0 1.1 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"></path>
                     </svg>
-                    Legg til designer
-                  </AddDesignerButton>
-                  
-                  {designers.length > 0 && (
-                    <button
-                      onClick={() => exportAllAssessments(designers, getDesignerAssessment)}
-                      style={{
-                        background: 'white',
-                        border: 'none',
-                        color: '#333333',
-                        padding: '12px 24px',
-                        borderRadius: '8px',
-                        fontSize: '1rem',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        height: '35px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.background = '#777777';
-                        e.target.style.color = 'white';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.background = 'white';
-                        e.target.style.color = '#333333';
-                      }}
-                    >
-                      <svg 
-                        style={{ 
-                          width: '20px', 
-                          height: '20px', 
-                          marginRight: '8px',
-                          fill: 'currentColor'
-                        }}
-                        viewBox="0 0 24 24"
-                      >
-                        <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
-                      </svg>
-                      Eksporter designere
-                    </button>
-                  )}
+                    Eksporter designere
+                  </button>
                 </div>
               </div>
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 
 const DesignerContext = createContext();
@@ -17,44 +17,61 @@ function designerReducer(state, action) {
   console.log('Reducer called with action:', action.type);
   console.log('Current state:', state);
   
+  let newState;
+  
   switch (action.type) {
     case 'SET_USER':
-      return { ...state, user: action.payload };
+      newState = { ...state, user: action.payload };
+      break;
     case 'SET_LOADING':
-      return { ...state, loading: action.payload };
+      newState = { ...state, loading: action.payload };
+      break;
     case 'SET_DESIGNERS_LOADING':
-      return { ...state, designersLoading: action.payload };
+      newState = { ...state, designersLoading: action.payload };
+      break;
     case 'SET_ASSESSMENTS_LOADING':
-      return { ...state, assessmentsLoading: action.payload };
+      newState = { ...state, assessmentsLoading: action.payload };
+      break;
     case 'SET_DESIGNERS':
-      return { ...state, designers: action.payload };
+      newState = { ...state, designers: action.payload };
+      break;
     case 'SET_ASSESSMENTS':
-      return { ...state, assessments: action.payload };
+      newState = { ...state, assessments: action.payload };
+      break;
     case 'SET_CURRENT_DESIGNER':
-      return { ...state, currentDesigner: action.payload };
+      newState = { ...state, currentDesigner: action.payload };
+      break;
     case 'ADD_DESIGNER':
-      return { ...state, designers: [...state.designers, action.payload] };
+      newState = { ...state, designers: [...state.designers, action.payload] };
+      break;
     case 'UPDATE_DESIGNER':
-      return {
+      newState = {
         ...state,
         designers: state.designers.map(d => 
           d.id === action.payload.id ? action.payload : d
         )
       };
+      break;
     case 'DELETE_DESIGNER':
-      return {
+      newState = {
         ...state,
         designers: state.designers.filter(d => d.id !== action.payload),
         currentDesigner: state.currentDesigner === action.payload ? null : state.currentDesigner
       };
+      break;
     default:
-      return state;
+      newState = state;
   }
+  
+  console.log('New state after', action.type + ':', newState);
+  return newState;
 }
 
 export function DesignerProvider({ children }) {
   const [state, dispatch] = useReducer(designerReducer, initialState);
   const [isInitialized, setIsInitialized] = useState(false);
+  const dataLoadPromise = useRef(null);
+  const hasLoadedData = useRef(false);
 
   // Add navigation state persistence
   useEffect(() => {
@@ -77,15 +94,12 @@ export function DesignerProvider({ children }) {
   const loadDesigners = async () => {
     console.log('=== LOAD DESIGNERS START ===');
     
-    // Get current state from the reducer, not from closure
-    const currentState = state;
-    console.log('Current state at start:', currentState);
-    
-    if (currentState.designers.length > 0) {
-      console.log('Designers already loaded, skipping...');
+    // Prevent multiple simultaneous loads
+    if (dataLoadPromise.current || hasLoadedData.current) {
+      console.log('Data loading already in progress or completed, skipping...');
       return;
     }
-
+    
     console.log('Loading designers...');
     dispatch({ type: 'SET_DESIGNERS_LOADING', payload: true });
 
@@ -105,7 +119,7 @@ export function DesignerProvider({ children }) {
           .order('name');
         
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Designers query timeout')), 3000) // Reduced from 5000
+          setTimeout(() => reject(new Error('Designers query timeout')), 3000)
         );
         
         const result = await Promise.race([
@@ -124,7 +138,7 @@ export function DesignerProvider({ children }) {
           console.log('Trying approach 2: Query without ordering...');
           const result = await Promise.race([
             supabase.from('designers').select('*').limit(100),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 2 timeout')), 2000)) // Reduced from 3000
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 2 timeout')), 2000))
           ]);
           
           designers = result.data;
@@ -138,7 +152,7 @@ export function DesignerProvider({ children }) {
             console.log('Trying approach 3: Minimal query (just IDs)...');
             const result = await Promise.race([
               supabase.from('designers').select('id, name').limit(10),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 3 timeout')), 1000)) // Reduced from 2000
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 3 timeout')), 1000))
             ]);
             
             designers = result.data;
@@ -152,7 +166,7 @@ export function DesignerProvider({ children }) {
               console.log('Trying approach 4: Different client settings...');
               const result = await Promise.race([
                 supabase.from('designers').select('id, name').limit(5),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 4 timeout')), 1000)) // Reduced from 2000
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 4 timeout')), 1000))
               ]);
               
               designers = result.data;
@@ -178,10 +192,11 @@ export function DesignerProvider({ children }) {
         // Dispatch the action to update state
         dispatch({ type: 'SET_DESIGNERS', payload: designers });
         
-        // Wait a moment for state to update, then check
-        setTimeout(() => {
-          console.log('State after dispatch:', state);
-        }, 100);
+        // Mark as loaded
+        hasLoadedData.current = true;
+        
+        // Load assessments after designers are loaded
+        await loadAssessments(designers);
       } else {
         console.log('No designers returned from any approach');
       }
@@ -200,8 +215,10 @@ export function DesignerProvider({ children }) {
   };
 
   // Simple function to load assessments
-  const loadAssessments = async () => {
-    if (state.designers.length === 0) return;
+  const loadAssessments = async (designersList = null) => {
+    const designers = designersList || state.designers;
+    
+    if (designers.length === 0) return;
 
     console.log('Loading assessments...');
     dispatch({ type: 'SET_ASSESSMENTS_LOADING', payload: true });
@@ -209,7 +226,7 @@ export function DesignerProvider({ children }) {
     try {
       const assessments = {};
       
-      for (const designer of state.designers) {
+      for (const designer of designers) {
         const { data: assessmentData, error } = await supabase
           .from('assessments')
           .select(`
@@ -256,9 +273,8 @@ export function DesignerProvider({ children }) {
         console.log('User found:', user.id);
         dispatch({ type: 'SET_USER', payload: user });
         
-        // Load data sequentially
+        // Load data
         await loadDesigners();
-        await loadAssessments();
         
         // Set loading to false AFTER data is loaded
         dispatch({ type: 'SET_LOADING', payload: false });
@@ -283,10 +299,9 @@ export function DesignerProvider({ children }) {
           dispatch({ type: 'SET_USER', payload: session.user });
           
           // Only load data if we don't already have it
-          if (state.designers.length === 0) {
+          if (state.designers.length === 0 && !hasLoadedData.current) {
             console.log('Auth SIGNED_IN: No designers, loading data...');
             await loadDesigners();
-            await loadAssessments();
             dispatch({ type: 'SET_LOADING', payload: false });
           } else {
             console.log('Auth SIGNED_IN: Designers already loaded, skipping...');
@@ -296,6 +311,7 @@ export function DesignerProvider({ children }) {
           dispatch({ type: 'SET_DESIGNERS', payload: [] });
           dispatch({ type: 'SET_ASSESSMENTS', payload: {} });
           dispatch({ type: 'SET_LOADING', payload: false });
+          hasLoadedData.current = false;
         } else if (event === 'INITIAL_SESSION') {
           console.log('Auth INITIAL_SESSION: Skipping data load (handled by getUser)');
         }

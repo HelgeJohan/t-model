@@ -60,7 +60,11 @@ export function DesignerProvider({ children }) {
   const loadDesigners = async () => {
     console.log('=== LOAD DESIGNERS START ===');
     
-    if (state.designers.length > 0) {
+    // Get current state from the reducer, not from closure
+    const currentState = state;
+    console.log('Current state at start:', currentState);
+    
+    if (currentState.designers.length > 0) {
       console.log('Designers already loaded, skipping...');
       return;
     }
@@ -153,7 +157,14 @@ export function DesignerProvider({ children }) {
       if (designers) {
         console.log('Designers loaded successfully:', designers.length);
         console.log('Designer names:', designers.map(d => d.name));
+        
+        // Dispatch the action to update state
         dispatch({ type: 'SET_DESIGNERS', payload: designers });
+        
+        // Wait a moment for state to update, then check
+        setTimeout(() => {
+          console.log('State after dispatch:', state);
+        }, 100);
       } else {
         console.log('No designers returned from any approach');
       }

@@ -75,7 +75,7 @@ export function DesignerProvider({ children }) {
       let designers = null;
       let error = null;
       
-      // Approach 1: Try with timeout
+      // Approach 1: Try with timeout (5 seconds)
       try {
         console.log('Trying approach 1: Normal query with timeout...');
         const designersPromise = supabase
@@ -98,13 +98,13 @@ export function DesignerProvider({ children }) {
       } catch (timeoutError) {
         console.log('Approach 1 failed (timeout):', timeoutError.message);
         
-        // Approach 2: Try without ordering (faster)
+        // Approach 2: Try without ordering (3 seconds)
         try {
           console.log('Trying approach 2: Query without ordering...');
-          const result = await supabase
-            .from('designers')
-            .select('*')
-            .limit(100);
+          const result = await Promise.race([
+            supabase.from('designers').select('*').limit(100),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 2 timeout')), 3000))
+          ]);
           
           designers = result.data;
           error = result.error;
@@ -112,20 +112,35 @@ export function DesignerProvider({ children }) {
         } catch (simpleError) {
           console.log('Approach 2 failed:', simpleError.message);
           
-          // Approach 3: Try minimal query
+          // Approach 3: Try minimal query (2 seconds)
           try {
             console.log('Trying approach 3: Minimal query (just IDs)...');
-            const result = await supabase
-              .from('designers')
-              .select('id, name')
-              .limit(10);
+            const result = await Promise.race([
+              supabase.from('designers').select('id, name').limit(10),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 3 timeout')), 2000))
+            ]);
             
             designers = result.data;
             error = result.error;
             console.log('Approach 3 succeeded:', { designers, error });
           } catch (minimalError) {
             console.log('Approach 3 failed:', minimalError.message);
-            throw minimalError;
+            
+            // Approach 4: Try with different Supabase client settings
+            try {
+              console.log('Trying approach 4: Different client settings...');
+              const result = await Promise.race([
+                supabase.from('designers').select('id, name').limit(5),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 4 timeout')), 2000))
+              ]);
+              
+              designers = result.data;
+              error = result.error;
+              console.log('Approach 4 succeeded:', { designers, error });
+            } catch (finalError) {
+              console.log('All approaches failed, final error:', finalError.message);
+              throw finalError;
+            }
           }
         }
       }

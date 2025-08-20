@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
 const DesignerContext = createContext();
@@ -9,8 +9,8 @@ const initialState = {
   assessments: {},
   user: null,
   loading: true,
-  designersLoading: false, // Add this line
-  assessmentsLoading: false // Add this line
+  designersLoading: false,
+  assessmentsLoading: false
 };
 
 function designerReducer(state, action) {
@@ -19,56 +19,34 @@ function designerReducer(state, action) {
   
   switch (action.type) {
     case 'SET_USER':
-      return { ...state, user: action.payload, loading: false };
-    
+      return { ...state, user: action.payload };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
-    
+    case 'SET_DESIGNERS_LOADING':
+      return { ...state, designersLoading: action.payload };
+    case 'SET_ASSESSMENTS_LOADING':
+      return { ...state, assessmentsLoading: action.payload };
     case 'SET_DESIGNERS':
       return { ...state, designers: action.payload };
-    
+    case 'SET_ASSESSMENTS':
+      return { ...state, assessments: action.payload };
+    case 'SET_CURRENT_DESIGNER':
+      return { ...state, currentDesigner: action.payload };
     case 'ADD_DESIGNER':
       return { ...state, designers: [...state.designers, action.payload] };
-    
     case 'UPDATE_DESIGNER':
       return {
         ...state,
         designers: state.designers.map(d => 
-          d.id === action.payload.id ? { ...d, name: action.payload.name } : d
+          d.id === action.payload.id ? action.payload : d
         )
       };
-    
     case 'DELETE_DESIGNER':
       return {
         ...state,
         designers: state.designers.filter(d => d.id !== action.payload),
-        currentDesigner: state.currentDesigner === action.payload ? null : state.currentDesigner,
-        assessments: Object.fromEntries(
-          Object.entries(state.assessments).filter(([id]) => id !== action.payload)
-        )
+        currentDesigner: state.currentDesigner === action.payload ? null : state.currentDesigner
       };
-    
-    case 'SET_CURRENT_DESIGNER':
-      return { ...state, currentDesigner: action.payload };
-    
-    case 'SET_ASSESSMENTS':
-      return { ...state, assessments: action.payload };
-    
-    case 'UPDATE_ASSESSMENT':
-      return {
-        ...state,
-        assessments: {
-          ...state.assessments,
-          [action.payload.designerId]: action.payload.assessment
-        }
-      };
-    
-    case 'SET_DESIGNERS_LOADING':
-      return { ...state, designersLoading: action.payload };
-    
-    case 'SET_ASSESSMENTS_LOADING':
-      return { ...state, assessmentsLoading: action.payload };
-    
     default:
       return state;
   }
@@ -76,330 +54,155 @@ function designerReducer(state, action) {
 
 export function DesignerProvider({ children }) {
   const [state, dispatch] = useReducer(designerReducer, initialState);
-  const [isLoadingData, setIsLoadingData] = useState(false);
-  const [hasLoadedData, setHasLoadedData] = useState(false);
-  const dataLoadPromise = useRef(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Add this debug function
-  const logState = (context) => {
-    console.log(`=== STATE CHECK [${context}] ===`);
-    console.log('isLoadingData:', isLoadingData);
-    console.log('hasLoadedData:', hasLoadedData);
-    console.log('dataLoadPromise.current:', dataLoadPromise.current);
-    console.log('state.designers.length:', state.designers.length);
-    console.log('state.user:', state.user?.id);
-    console.log('========================');
-  };
-
-  // Move loadUserData to useCallback to prevent recreation
-  const loadUserData = useCallback(async (userId) => {
-    console.log('🚀 === LOADING USER DATA START ===');
-    console.log('User ID:', userId);
-    logState('loadUserData START');
-    
-    // Check if we already have designers
-    if (state.designers.length > 0 || hasLoadedData) {
-      console.log('⏭️ SKIPPING: Designers already loaded or data already fetched');
+  // Simple function to load designers
+  const loadDesigners = async () => {
+    if (state.designers.length > 0) {
+      console.log('Designers already loaded, skipping...');
       return;
     }
-    
+
+    console.log('Loading designers...');
     dispatch({ type: 'SET_DESIGNERS_LOADING', payload: true });
-    
+
     try {
-      // Load designers first (fast)
-      console.log(' Fetching designers from database...');
-      
-      // Add timeout to prevent hanging on refresh
-      const designersPromise = supabase
+      const { data: designers, error } = await supabase
         .from('designers')
         .select('*')
         .order('name');
-      
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Designers fetch timeout on refresh')), 5000)
-      );
-      
-      const { data: designers, error: designersError } = await Promise.race([
-        designersPromise,
-        timeoutPromise
-      ]);
 
-      console.log(' Designers response:', { designers, designersError });
+      if (error) throw error;
 
-      if (designersError) {
-        console.error('❌ Error fetching designers:', designersError);
-        throw designersError;
-      }
-
-      if (designers && designers.length > 0) {
-        console.log('✅ Setting designers in state immediately:', designers);
+      if (designers) {
+        console.log('Designers loaded:', designers.length);
         dispatch({ type: 'SET_DESIGNERS', payload: designers });
-        
-        // Load assessments in background (don't block UI)
-        loadAssessmentsInBackground(designers);
-      } else {
-        console.log('ℹ️ No designers found in database');
       }
     } catch (error) {
-      console.error('❌ Error loading user data:', error);
-      console.error('Error details:', error.message, error.code, error.details);
-      
-      // If there's a timeout, try to load designers again after a delay
-      if (error.message.includes('timeout')) {
-        console.log('⏰ Retrying designers load after timeout...');
-        setTimeout(() => {
-          if (state.user && state.designers.length === 0 && !hasLoadedData) {
-            loadUserData(state.user.id);
-          }
-        }, 1000);
-      }
+      console.error('Error loading designers:', error);
     } finally {
       dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
-      console.log('🏁 === LOADING USER DATA END ===');
     }
-  }, []); // Remove all dependencies to prevent infinite loops
+  };
 
-  // Create a function to check if we should load data
-  const shouldLoadData = useCallback(() => {
-    return state.designers.length === 0 && !hasLoadedData && !dataLoadPromise.current;
-  }, [state.designers.length, hasLoadedData]);
+  // Simple function to load assessments
+  const loadAssessments = async () => {
+    if (state.designers.length === 0) return;
 
-  // Check for existing user session on app load
-  useEffect(() => {
-    const getUser = async () => {
-      logState('getUser START');
+    console.log('Loading assessments...');
+    dispatch({ type: 'SET_ASSESSMENTS_LOADING', payload: true });
+
+    try {
+      const assessments = {};
       
-      // Prevent multiple simultaneous data loads
-      if (isLoadingData || hasLoadedData || dataLoadPromise.current) {
-        console.log('🚫 BLOCKED: Data loading already in progress, completed, or promise exists');
-        logState('getUser BLOCKED');
-        return;
+      for (const designer of state.designers) {
+        const { data: assessmentData, error } = await supabase
+          .from('assessments')
+          .select(`
+            *,
+            assessment_skills(skill_id, proficiency)
+          `)
+          .eq('designer_id', designer.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!error && assessmentData) {
+          assessments[designer.id] = assessmentData;
+        }
       }
 
-      console.log('✅ PROCEEDING: getUser will load data');
-      console.log('=== GETTING USER ===');
+      dispatch({ type: 'SET_ASSESSMENTS', payload: assessments });
+    } catch (error) {
+      console.error('Error loading assessments:', error);
+    } finally {
+      dispatch({ type: 'SET_ASSESSMENTS_LOADING', payload: false });
+    }
+  };
+
+  // Single initialization effect
+  useEffect(() => {
+    const initializeApp = async () => {
+      if (isInitialized) return;
+      
+      console.log('Initializing app...');
+      
+      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('User result:', user);
       
       if (user) {
-        console.log('User authenticated, setting user state...');
+        console.log('User found:', user.id);
         dispatch({ type: 'SET_USER', payload: user });
+        dispatch({ type: 'SET_LOADING', payload: false });
         
-        // Only load data if we haven't already
-        if (shouldLoadData()) {
-          console.log('✅ LOADING: No designers in state, loading data...');
-          setIsLoadingData(true);
-          
-          // Store the promise to prevent duplicate calls
-          dataLoadPromise.current = loadUserData(user.id);
-          console.log('🔒 PROMISE LOCKED:', dataLoadPromise.current);
-          
-          await dataLoadPromise.current;
-          
-          setIsLoadingData(false);
-          setHasLoadedData(true);
-          dataLoadPromise.current = null;
-          console.log('🔓 PROMISE UNLOCKED');
-        } else {
-          console.log('⏭️ SKIPPING: Designers already in state or data already loaded');
-        }
+        // Load data sequentially
+        await loadDesigners();
+        await loadAssessments();
       } else {
-        console.log('No user found, setting loading to false...');
+        console.log('No user found');
         dispatch({ type: 'SET_LOADING', payload: false });
       }
       
-      logState('getUser END');
+      setIsInitialized(true);
     };
 
-    getUser();
+    initializeApp();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log(`🔄 AUTH EVENT: ${event} for user: ${session?.user?.id}`);
-        logState(`AUTH_${event}_START`);
+        console.log('Auth state change:', event);
         
-        if (session?.user) {
+        if (event === 'SIGNED_IN' && session?.user) {
           dispatch({ type: 'SET_USER', payload: session.user });
-          
-          // Only load data if we haven't already AND no promise is running
-          if (shouldLoadData()) {
-            console.log('✅ AUTH LOADING: No designers in state, loading data...');
-            setIsLoadingData(true);
-            
-            // Store the promise to prevent duplicate calls
-            dataLoadPromise.current = loadUserData(session.user.id);
-            console.log('🔒 AUTH PROMISE LOCKED:', dataLoadPromise.current);
-            
-            await dataLoadPromise.current;
-            
-            setIsLoadingData(false);
-            setHasLoadedData(true);
-            dataLoadPromise.current = null;
-            console.log('🔓 AUTH PROMISE UNLOCKED');
-          } else {
-            console.log('⏭️ AUTH SKIPPING: Data already loading or loaded');
-          }
-        } else {
-          console.log('Auth change: No session, clearing state...');
+          await loadDesigners();
+          await loadAssessments();
+        } else if (event === 'SIGNED_OUT') {
           dispatch({ type: 'SET_USER', payload: null });
           dispatch({ type: 'SET_DESIGNERS', payload: [] });
           dispatch({ type: 'SET_ASSESSMENTS', payload: {} });
-          setHasLoadedData(false);
-          dataLoadPromise.current = null;
         }
-        
-        logState(`AUTH_${event}_END`);
       }
     );
 
     return () => subscription.unsubscribe();
-  }, []); // Remove all dependencies to prevent infinite loops
+  }, [isInitialized]);
 
-  // New function to load assessments without blocking the UI
-  const loadAssessmentsInBackground = async (designers) => {
-    console.log('Loading assessments in background...');
-    
-    try {
-      const assessments = {};
-      
-      for (const designer of designers) {
-        console.log('Loading assessment for designer:', designer.name);
-        
-        const { data: assessment, error: assessmentError } = await supabase
-          .from('assessments')
-          .select(`
-            *,
-            assessment_skills (
-              skill_id,
-              proficiency,
-              notes
-            )
-          `)
-          .eq('designer_id', designer.id)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        console.log('Assessment for', designer.name, ':', assessment);
-
-        if (!assessmentError && assessment && assessment.length > 0) {
-          const latestAssessment = assessment[0];
-          const skills = latestAssessment.assessment_skills.map(as => ({
-            name: getSkillName(as.skill_id),
-            proficiency: as.proficiency
-          }));
-          
-          assessments[designer.id] = {
-            skills,
-            timestamp: latestAssessment.created_at
-          };
-        }
-      }
-      
-      console.log('Setting assessments in state:', assessments);
-      dispatch({ type: 'SET_ASSESSMENTS', payload: assessments });
-      
-    } catch (error) {
-      console.error('Error loading assessments in background:', error);
-    }
-  };
-
-  const getSkillName = (skillId) => {
-    // This will be implemented when we load skills from database
-    // For now, return a placeholder
-    return 'Skill ' + skillId;
-  };
-
+  // Functions for components to use
   const addDesigner = async (name) => {
-    console.log('=== ADD DESIGNER START ===');
-    console.log('DesignerContext.addDesigner called with:', name);
-    console.log('Current user:', state.user);
-    
-    if (!state.user) {
-      console.log('No user, returning null');
-      return null;
-    }
-
     try {
-      console.log('Attempting to insert designer into database...');
-      console.log('Inserting data:', { name, user_id: state.user.id });
-      
-      // Test database connection first with a simple select
-      console.log('Testing database connection with simple select...');
-      console.log('About to call supabase.from...');
-      
-      // Test if supabase object is working
-      console.log('Supabase object:', supabase);
-      console.log('Supabase.from method:', typeof supabase.from);
-      
-      // Try the query step by step
-      const query = supabase.from('designers');
-      console.log('Query object created:', query);
-      
-      const selectQuery = query.select('id');
-      console.log('Select query created:', selectQuery);
-      
-      const limitQuery = selectQuery.limit(1);
-      console.log('Limit query created:', limitQuery);
-      
-      console.log('About to await the query...');
-      const { data: testData, error: testError } = await limitQuery;
-      
-      console.log('Connection test result:', { testData, testError });
-      
-      if (testError) {
-        console.log('Connection test failed:', testError);
-        throw testError;
-      }
-      
-      console.log('Connection test successful, proceeding with insert...');
-      
       const { data: designer, error } = await supabase
         .from('designers')
-        .insert([
-          {
-            name,
-            user_id: state.user.id
-          }
-        ])
+        .insert([{ name, user_id: state.user.id }])
         .select()
         .single();
 
-      console.log('Database response:', { designer, error });
+      if (error) throw error;
 
-      if (error) {
-        console.log('Database error, throwing:', error);
-        throw error;
-      }
-
-      console.log('Designer added to database, updating state...');
       dispatch({ type: 'ADD_DESIGNER', payload: designer });
-      console.log('State updated, returning designer:', designer);
       return designer;
     } catch (error) {
       console.error('Error adding designer:', error);
-      console.error('Error details:', error.message, error.code, error.details);
-      console.error('Error stack:', error.stack);
-      return null;
+      throw error;
     }
   };
 
-  const updateDesigner = async (id, name) => {
+  const updateDesigner = async (id, updates) => {
     try {
       const { data: designer, error } = await supabase
         .from('designers')
-        .update({ name })
+        .update(updates)
         .eq('id', id)
         .select()
         .single();
 
       if (error) throw error;
 
-      dispatch({ type: 'UPDATE_DESIGNER', payload: { id, name } });
+      dispatch({ type: 'UPDATE_DESIGNER', payload: designer });
       return designer;
     } catch (error) {
       console.error('Error updating designer:', error);
-      return null;
+      throw error;
     }
   };
 
@@ -413,78 +216,66 @@ export function DesignerProvider({ children }) {
       if (error) throw error;
 
       dispatch({ type: 'DELETE_DESIGNER', payload: id });
-      return true;
     } catch (error) {
       console.error('Error deleting designer:', error);
-      return false;
+      throw error;
     }
   };
 
   const saveAssessment = async (designerId, skills) => {
-    if (!state.user) return false;
-
     try {
-      // First, create or get the latest assessment
+      // First, create the assessment
       const { data: assessment, error: assessmentError } = await supabase
         .from('assessments')
-        .insert([
-          {
-            designer_id: designerId,
-            name: 'Assessment'
-          }
-        ])
+        .insert([{
+          designer_id: designerId,
+          user_id: state.user.id
+        }])
         .select()
         .single();
 
       if (assessmentError) throw assessmentError;
 
-      // Then, insert all the skill proficiencies
-      const skillData = skills.map(skill => ({
+      // Then, create the assessment skills
+      const assessmentSkills = skills.map(skill => ({
         assessment_id: assessment.id,
-        skill_id: getSkillIdByName(skill.name), // We'll implement this
+        skill_id: skill.id || skill.name, // Handle both cases
         proficiency: skill.proficiency
       }));
 
       const { error: skillsError } = await supabase
         .from('assessment_skills')
-        .insert(skillData);
+        .insert(assessmentSkills);
 
       if (skillsError) throw skillsError;
 
       // Update local state
+      const updatedAssessment = {
+        ...assessment,
+        assessment_skills: assessmentSkills
+      };
+
       dispatch({
-        type: 'UPDATE_ASSESSMENT',
+        type: 'SET_ASSESSMENTS',
         payload: {
-          designerId,
-          assessment: {
-            skills,
-            timestamp: assessment.created_at
-          }
+          ...state.assessments,
+          [designerId]: updatedAssessment
         }
       });
 
-      return true;
+      return updatedAssessment;
     } catch (error) {
       console.error('Error saving assessment:', error);
-      return false;
+      throw error;
     }
   };
 
-  const getSkillIdByName = (skillName) => {
-    // This will be implemented when we load skills from database
-    // For now, return a placeholder
-    return 'skill-id-placeholder';
+  const getDesignerAssessment = (designerId) => {
+    return state.assessments[designerId];
   };
 
-  const getDesignerAssessment = (designerId) => {
-    console.log('=== GET DESIGNER ASSESSMENT ===');
-    console.log('Looking for assessment for designer:', designerId);
-    console.log('Current assessments state:', state.assessments);
-    
-    const assessment = state.assessments[designerId];
-    console.log('Found assessment:', assessment);
-    
-    return assessment;
+  const setCurrentDesigner = (designerId) => {
+    dispatch({ type: 'SET_CURRENT_DESIGNER', payload: designerId });
   };
 
   const value = {
@@ -493,10 +284,8 @@ export function DesignerProvider({ children }) {
     updateDesigner,
     deleteDesigner,
     saveAssessment,
-    getDesignerAssessment, // Add this line
-    setCurrentDesigner: (designerId) => {
-      dispatch({ type: 'SET_CURRENT_DESIGNER', payload: designerId });
-    }
+    getDesignerAssessment,
+    setCurrentDesigner
   };
 
   return (

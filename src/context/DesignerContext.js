@@ -78,17 +78,32 @@ export function DesignerProvider({ children }) {
   const [state, dispatch] = useReducer(designerReducer, initialState);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [hasLoadedData, setHasLoadedData] = useState(false);
-  const dataLoadPromise = useRef(null); // Add this line
+  const dataLoadPromise = useRef(null);
+
+  // Add this debug function
+  const logState = (context) => {
+    console.log(`=== STATE CHECK [${context}] ===`);
+    console.log('isLoadingData:', isLoadingData);
+    console.log('hasLoadedData:', hasLoadedData);
+    console.log('dataLoadPromise.current:', dataLoadPromise.current);
+    console.log('state.designers.length:', state.designers.length);
+    console.log('state.user:', state.user?.id);
+    console.log('========================');
+  };
 
   // Check for existing user session on app load
   useEffect(() => {
     const getUser = async () => {
+      logState('getUser START');
+      
       // Prevent multiple simultaneous data loads
       if (isLoadingData || hasLoadedData || dataLoadPromise.current) {
-        console.log('Data loading already in progress, completed, or promise exists, skipping...');
+        console.log('🚫 BLOCKED: Data loading already in progress, completed, or promise exists');
+        logState('getUser BLOCKED');
         return;
       }
 
+      console.log('✅ PROCEEDING: getUser will load data');
       console.log('=== GETTING USER ===');
       const { data: { user } } = await supabase.auth.getUser();
       console.log('User result:', user);
@@ -99,23 +114,28 @@ export function DesignerProvider({ children }) {
         
         // Only load data if we haven't already
         if (state.designers.length === 0 && !hasLoadedData) {
-          console.log('No designers in state, loading data...');
+          console.log('✅ LOADING: No designers in state, loading data...');
           setIsLoadingData(true);
           
           // Store the promise to prevent duplicate calls
           dataLoadPromise.current = loadUserData(user.id);
+          console.log('🔒 PROMISE LOCKED:', dataLoadPromise.current);
+          
           await dataLoadPromise.current;
           
           setIsLoadingData(false);
           setHasLoadedData(true);
           dataLoadPromise.current = null;
+          console.log('🔓 PROMISE UNLOCKED');
         } else {
-          console.log('Designers already in state or data already loaded, skipping load...');
+          console.log('⏭️ SKIPPING: Designers already in state or data already loaded');
         }
       } else {
         console.log('No user found, setting loading to false...');
         dispatch({ type: 'SET_LOADING', payload: false });
       }
+      
+      logState('getUser END');
     };
 
     getUser();
@@ -123,25 +143,29 @@ export function DesignerProvider({ children }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.id);
+        console.log(`🔄 AUTH EVENT: ${event} for user: ${session?.user?.id}`);
+        logState(`AUTH_${event}_START`);
         
         if (session?.user) {
           dispatch({ type: 'SET_USER', payload: session.user });
           
           // Only load data if we haven't already AND no promise is running
           if (state.designers.length === 0 && !hasLoadedData && !dataLoadPromise.current) {
-            console.log('Auth change: No designers in state, loading data...');
+            console.log('✅ AUTH LOADING: No designers in state, loading data...');
             setIsLoadingData(true);
             
             // Store the promise to prevent duplicate calls
             dataLoadPromise.current = loadUserData(session.user.id);
+            console.log('🔒 AUTH PROMISE LOCKED:', dataLoadPromise.current);
+            
             await dataLoadPromise.current;
             
             setIsLoadingData(false);
             setHasLoadedData(true);
             dataLoadPromise.current = null;
+            console.log('🔓 AUTH PROMISE UNLOCKED');
           } else {
-            console.log('Auth change: Data already loading or loaded, skipping...');
+            console.log('⏭️ AUTH SKIPPING: Data already loading or loaded');
           }
         } else {
           console.log('Auth change: No session, clearing state...');
@@ -151,19 +175,22 @@ export function DesignerProvider({ children }) {
           setHasLoadedData(false);
           dataLoadPromise.current = null;
         }
+        
+        logState(`AUTH_${event}_END`);
       }
     );
 
     return () => subscription.unsubscribe();
-  }, []); // Remove dependencies that cause re-runs
+  }, []);
 
   const loadUserData = async (userId) => {
-    console.log('=== LOADING USER DATA ===');
+    console.log('🚀 === LOADING USER DATA START ===');
     console.log('User ID:', userId);
+    logState('loadUserData START');
     
     // Check if we already have designers
     if (state.designers.length > 0 || hasLoadedData) {
-      console.log('Designers already loaded or data already fetched, skipping...');
+      console.log('⏭️ SKIPPING: Designers already loaded or data already fetched');
       return;
     }
     
@@ -171,7 +198,7 @@ export function DesignerProvider({ children }) {
     
     try {
       // Load designers first (fast)
-      console.log('Fetching designers from database...');
+      console.log(' Fetching designers from database...');
       
       // Add timeout to prevent hanging on refresh
       const designersPromise = supabase
@@ -180,7 +207,7 @@ export function DesignerProvider({ children }) {
         .order('name');
       
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Designers fetch timeout on refresh')), 5000) // Reduced to 5 seconds
+        setTimeout(() => reject(new Error('Designers fetch timeout on refresh')), 5000)
       );
       
       const { data: designers, error: designersError } = await Promise.race([
@@ -188,37 +215,38 @@ export function DesignerProvider({ children }) {
         timeoutPromise
       ]);
 
-      console.log('Designers response:', { designers, designersError });
+      console.log(' Designers response:', { designers, designersError });
 
       if (designersError) {
-        console.error('Error fetching designers:', designersError);
+        console.error('❌ Error fetching designers:', designersError);
         throw designersError;
       }
 
       if (designers && designers.length > 0) {
-        console.log('Setting designers in state immediately:', designers);
+        console.log('✅ Setting designers in state immediately:', designers);
         dispatch({ type: 'SET_DESIGNERS', payload: designers });
         
         // Load assessments in background (don't block UI)
         loadAssessmentsInBackground(designers);
       } else {
-        console.log('No designers found in database');
+        console.log('ℹ️ No designers found in database');
       }
     } catch (error) {
-      console.error('Error loading user data:', error);
+      console.error('❌ Error loading user data:', error);
       console.error('Error details:', error.message, error.code, error.details);
       
       // If there's a timeout, try to load designers again after a delay
       if (error.message.includes('timeout')) {
-        console.log('Retrying designers load after timeout...');
+        console.log('⏰ Retrying designers load after timeout...');
         setTimeout(() => {
           if (state.user && state.designers.length === 0 && !hasLoadedData) {
             loadUserData(state.user.id);
           }
-        }, 1000); // Reduced retry delay
+        }, 1000);
       }
     } finally {
       dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
+      console.log('🏁 === LOADING USER DATA END ===');
     }
   };
 

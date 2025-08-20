@@ -106,82 +106,14 @@ export function DesignerProvider({ children }) {
     try {
       console.log('About to call supabase.from...');
       
-      // Try multiple approaches to load designers
-      let designers = null;
-      let error = null;
-      
-      // Approach 1: Try with shorter timeout (3 seconds instead of 5)
-      try {
-        console.log('Trying approach 1: Normal query with timeout...');
-        const designersPromise = supabase
-          .from('designers')
-          .select('*')
-          .order('name');
-        
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Designers query timeout')), 3000)
-        );
-        
-        const result = await Promise.race([
-          designersPromise,
-          timeoutPromise
-        ]);
-        
-        designers = result.data;
-        error = result.error;
-        console.log('Approach 1 succeeded:', { designers, error });
-      } catch (timeoutError) {
-        console.log('Approach 1 failed (timeout):', timeoutError.message);
-        
-        // Approach 2: Try without ordering (2 seconds)
-        try {
-          console.log('Trying approach 2: Query without ordering...');
-          const result = await Promise.race([
-            supabase.from('designers').select('*').limit(100),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 2 timeout')), 2000))
-          ]);
-          
-          designers = result.data;
-          error = result.error;
-          console.log('Approach 2 succeeded:', { designers, error });
-        } catch (simpleError) {
-          console.log('Approach 2 failed:', simpleError.message);
-          
-          // Approach 3: Try minimal query (1 second)
-          try {
-            console.log('Trying approach 3: Minimal query (just IDs)...');
-            const result = await Promise.race([
-              supabase.from('designers').select('id, name').limit(10),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 3 timeout')), 1000))
-            ]);
-            
-            designers = result.data;
-            error = result.error;
-            console.log('Approach 3 succeeded:', { designers, error });
-          } catch (minimalError) {
-            console.log('Approach 3 failed:', minimalError.message);
-            
-            // Approach 4: Try with different Supabase client settings (1 second)
-            try {
-              console.log('Trying approach 4: Different client settings...');
-              const result = await Promise.race([
-                supabase.from('designers').select('id, name').limit(5),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Approach 4 timeout')), 1000))
-              ]);
-              
-              designers = result.data;
-              error = result.error;
-              console.log('Approach 4 succeeded:', { designers, error });
-            } catch (finalError) {
-              console.log('All approaches failed, final error:', finalError.message);
-              throw finalError;
-            }
-          }
-        }
-      }
+      // Simple, direct approach without timeouts
+      const { data: designers, error } = await supabase
+        .from('designers')
+        .select('*')
+        .order('name');
 
       if (error) {
-        console.error('All approaches failed, final error:', error);
+        console.error('Error fetching designers:', error);
         throw error;
       }
 
@@ -198,7 +130,7 @@ export function DesignerProvider({ children }) {
         // Load assessments after designers are loaded
         await loadAssessments(designers);
       } else {
-        console.log('No designers returned from any approach');
+        console.log('No designers returned from database');
       }
     } catch (error) {
       console.error('Error loading designers:', error);
@@ -380,8 +312,14 @@ export function DesignerProvider({ children }) {
       console.log('=== SAVE ASSESSMENT START ===');
       console.log('Designer ID:', designerId);
       console.log('Skills:', skills);
+      console.log('Current user:', state.user);
       
-      // Create the assessment with proper schema
+      // Check if we have a user
+      if (!state.user) {
+        throw new Error('No user found - cannot save assessment');
+      }
+      
+      // Create the assessment with your exact schema
       const assessmentData = {
         designer_id: designerId,
         user_id: state.user.id,

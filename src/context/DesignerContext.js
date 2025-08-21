@@ -316,6 +316,25 @@ export function DesignerProvider({ children }) {
 
   const updateDesigner = async (id, updates) => {
     try {
+      console.log('=== UPDATE DESIGNER START ===');
+      console.log('Updating designer ID:', id);
+      console.log('Updates:', updates);
+      
+      // First, verify the designer exists
+      const { data: existingDesigner, error: checkError } = await supabase
+        .from('designers')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (checkError) {
+        console.error('Error checking if designer exists:', checkError);
+        throw new Error(`Designer with ID ${id} not found`);
+      }
+      
+      console.log('Designer exists:', existingDesigner);
+      
+      // Now perform the update
       const { data: designer, error } = await supabase
         .from('designers')
         .update(updates)
@@ -323,12 +342,21 @@ export function DesignerProvider({ children }) {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating designer:', error);
+        throw error;
+      }
 
+      console.log('Designer updated successfully:', designer);
+      
+      // Update local state
       dispatch({ type: 'UPDATE_DESIGNER', payload: designer });
+      
+      console.log('=== UPDATE DESIGNER END ===');
       return designer;
     } catch (error) {
       console.error('Error updating designer:', error);
+      console.error('Error details:', error.message, error.code, error.details);
       throw error;
     }
   };

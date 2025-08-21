@@ -103,58 +103,76 @@ export function DesignerProvider({ children }) {
     console.log('Loading designers...');
     dispatch({ type: 'SET_DESIGNERS_LOADING', payload: true });
 
-    try {
-      console.log('About to call supabase.from...');
-      
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Designers loading timeout after 10 seconds')), 10000);
-      });
-      
-      const dataPromise = supabase
-        .from('designers')
-        .select('*')
-        .order('name');
-      
-      // Race between timeout and data loading
-      const { data: designers, error } = await Promise.race([dataPromise, timeoutPromise]);
+    // Retry logic with exponential backoff
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`Attempt ${retryCount + 1} to load designers...`);
+        
+        // Shorter timeout for retries
+        const timeout = retryCount === 0 ? 5000 : 2000; // 5s first, 2s retries
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error(`Designers loading timeout after ${timeout/1000} seconds`)), timeout);
+        });
+        
+        const dataPromise = supabase
+          .from('designers')
+          .select('*')
+          .order('name');
+        
+        // Race between timeout and data loading
+        const { data: designers, error } = await Promise.race([dataPromise, timeoutPromise]);
 
-      console.log('Supabase response received:', { designers, error });
+        console.log('Supabase response received:', { designers, error });
 
-      if (error) {
-        console.error('Error fetching designers:', error);
-        throw error;
+        if (error) {
+          console.error('Error fetching designers:', error);
+          throw error;
+        }
+
+        if (designers) {
+          console.log('Designers loaded successfully:', designers.length);
+          console.log('Designer names:', designers.map(d => d.name));
+          
+          // Dispatch the action to update state
+          dispatch({ type: 'SET_DESIGNERS', payload: designers });
+          
+          // Mark as loaded
+          hasLoadedData.current = true;
+          
+          // Load assessments after designers are loaded
+          console.log('Starting to load assessments...');
+          await loadAssessments(designers);
+          console.log('Assessments loading completed');
+          
+          // Success - break out of retry loop
+          break;
+        } else {
+          console.log('No designers returned from database');
+          break;
+        }
+      } catch (error) {
+        retryCount++;
+        console.error(`Attempt ${retryCount} failed:`, error.message);
+        
+        if (retryCount >= maxRetries) {
+          console.error('All retry attempts failed');
+          // Set loading to false on final failure
+          dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
+          dispatch({ type: 'SET_LOADING', payload: false });
+        } else {
+          console.log(`Retrying in ${retryCount * 1000}ms...`);
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+        }
       }
-
-      if (designers) {
-        console.log('Designers loaded successfully:', designers.length);
-        console.log('Designer names:', designers.map(d => d.name));
-        
-        // Dispatch the action to update state
-        dispatch({ type: 'SET_DESIGNERS', payload: designers });
-        
-        // Mark as loaded
-        hasLoadedData.current = true;
-        
-        // Load assessments after designers are loaded
-        console.log('Starting to load assessments...');
-        await loadAssessments(designers);
-        console.log('Assessments loading completed');
-      } else {
-        console.log('No designers returned from database');
-      }
-    } catch (error) {
-      console.error('Error loading designers:', error);
-      console.error('Error details:', error.message, error.code, error.details);
-      
-      // Set loading to false even on error
-      dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
-      dispatch({ type: 'SET_LOADING', payload: false });
-    } finally {
-      console.log('Setting designersLoading to false');
-      dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
-      console.log('=== LOAD DESIGNERS END ===');
     }
+    
+    console.log('Setting designersLoading to false');
+    dispatch({ type: 'SET_DESIGNERS_LOADING', payload: false });
+    console.log('=== LOAD DESIGNERS END ===');
   };
 
   // Simple function to load assessments

@@ -234,8 +234,13 @@ export function DesignerProvider({ children }) {
         console.log('User found:', user.id);
         dispatch({ type: 'SET_USER', payload: user });
         
-        // Load data
-        await loadDesigners();
+        // Load data ONLY if not already loaded by auth handler
+        if (state.designers.length === 0 && !hasLoadedData.current) {
+          console.log('Loading data from initialization...');
+          await loadDesigners();
+        } else {
+          console.log('Data already loaded by auth handler, skipping...');
+        }
         
         // Set loading to false AFTER data is loaded
         dispatch({ type: 'SET_LOADING', payload: false });

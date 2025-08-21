@@ -758,20 +758,7 @@ const AppContent = () => {
                     </DesignerList>
                   )}
                   
-                  <AddDesignerButton onClick={() => setShowRegistration(true)}>
-                    <svg 
-                      style={{ 
-                        width: '20px', 
-                        height: '20px', 
-                        marginRight: '8px',
-                        fill: '#777777'
-                      }}
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                    </svg>
-                    Legg til designer
-                  </AddDesignerButton>
+                  <DesignerRegistration onDesignerAdded={handleDesignerAdded} />
                 </div>
               </div>
               

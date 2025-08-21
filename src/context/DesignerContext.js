@@ -335,11 +335,14 @@ export function DesignerProvider({ children }) {
       console.log('Designer exists:', existingDesigner);
       
       // Try a different update approach - don't use .single() for the update
+      console.log('Sending update request to Supabase...');
       const { data: designer, error } = await supabase
         .from('designers')
         .update(updates)
         .eq('id', id)
         .select();
+
+      console.log('Update response received:', { data: designer, error });
 
       if (error) {
         console.error('Error updating designer:', error);
@@ -348,6 +351,8 @@ export function DesignerProvider({ children }) {
 
       // Check if we got any results
       if (!designer || designer.length === 0) {
+        console.error('Update operation returned no results');
+        console.error('This suggests the update failed at the database level');
         throw new Error('No designer was updated - update operation failed');
       }
 

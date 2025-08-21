@@ -634,7 +634,11 @@ const AppContent = () => {
                 marginBottom: '30px' 
               }}>
                 <button
-                  onClick={() => setCurrentDesigner(null)}
+                  onClick={() => {
+                    console.log('🏠 Forside button clicked! Current designer:', currentDesigner);
+                    setCurrentDesigner(null);
+                    console.log('🏠 Setting currentDesigner to null');
+                  }}
                   style={{
                     background: 'white',
                     border: 'none',

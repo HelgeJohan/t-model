@@ -334,35 +334,40 @@ export function DesignerProvider({ children }) {
       
       console.log('Designer exists:', existingDesigner);
       
-      // Try a different update approach - don't use .single() for the update
+      // Try updating without selecting the result first
       console.log('Sending update request to Supabase...');
-      const { data: designer, error } = await supabase
+      const { error: updateError } = await supabase
         .from('designers')
         .update(updates)
+        .eq('id', id);
+
+      console.log('Update response received:', { error: updateError });
+
+      if (updateError) {
+        console.error('Error updating designer:', updateError);
+        throw updateError;
+      }
+
+      // If update succeeded, fetch the updated designer
+      console.log('Update succeeded, fetching updated designer...');
+      const { data: updatedDesigner, error: fetchError } = await supabase
+        .from('designers')
+        .select('*')
         .eq('id', id)
-        .select();
+        .single();
 
-      console.log('Update response received:', { data: designer, error });
-
-      if (error) {
-        console.error('Error updating designer:', error);
-        throw error;
+      if (fetchError) {
+        console.error('Error fetching updated designer:', fetchError);
+        throw new Error('Update succeeded but could not fetch updated designer');
       }
 
-      // Check if we got any results
-      if (!designer || designer.length === 0) {
-        console.error('Update operation returned no results');
-        console.error('This suggests the update failed at the database level');
-        throw new Error('No designer was updated - update operation failed');
-      }
-
-      console.log('Designer updated successfully:', designer[0]);
+      console.log('Designer updated successfully:', updatedDesigner);
       
-      // Update local state with the first (and should be only) result
-      dispatch({ type: 'UPDATE_DESIGNER', payload: designer[0] });
+      // Update local state
+      dispatch({ type: 'UPDATE_DESIGNER', payload: updatedDesigner });
       
       console.log('=== UPDATE DESIGNER END ===');
-      return designer[0];
+      return updatedDesigner;
     } catch (error) {
       console.error('Error updating designer:', error);
       console.error('Error details:', error.message, error.code, error.details);

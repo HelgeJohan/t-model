@@ -318,7 +318,18 @@ export function DesignerProvider({ children }) {
     try {
       console.log('=== UPDATE DESIGNER START ===');
       console.log('Updating designer ID:', id);
-      console.log('Updates:', updates);
+      console.log('Updates parameter:', updates);
+      console.log('Updates type:', typeof updates);
+      
+      // Ensure updates is an object
+      let updateData = updates;
+      if (typeof updates === 'string') {
+        // If updates is a string, assume it's the name field
+        updateData = { name: updates };
+        console.log('Converted string to object:', updateData);
+      }
+      
+      console.log('Final update data:', updateData);
       
       // First, verify the designer exists
       const { data: existingDesigner, error: checkError } = await supabase
@@ -336,13 +347,9 @@ export function DesignerProvider({ children }) {
       
       // Try updating without selecting the result first
       console.log('Sending update request to Supabase...');
-      console.log('Update payload:', { id, updates });
-      console.log('Updates object keys:', Object.keys(updates));
-      console.log('Updates object values:', Object.values(updates));
-      
       const { error: updateError } = await supabase
         .from('designers')
-        .update(updates)
+        .update(updateData)
         .eq('id', id);
 
       console.log('Update response received:', { error: updateError });

@@ -214,6 +214,8 @@ export function DesignerProvider({ children }) {
 
   // Single initialization effect
   useEffect(() => {
+    let isInitializing = true; // Local flag to prevent auth handler interference
+    
     const initializeApp = async () => {
       console.log('=== INITIALIZE APP START ===');
       console.log('isInitialized:', isInitialized);
@@ -234,13 +236,9 @@ export function DesignerProvider({ children }) {
         console.log('User found:', user.id);
         dispatch({ type: 'SET_USER', payload: user });
         
-        // Load data ONLY if not already loaded by auth handler
-        if (state.designers.length === 0 && !hasLoadedData.current) {
-          console.log('Loading data from initialization...');
-          await loadDesigners();
-        } else {
-          console.log('Data already loaded by auth handler, skipping...');
-        }
+        // Load data
+        console.log('Loading data from initialization...');
+        await loadDesigners();
         
         // Set loading to false AFTER data is loaded
         dispatch({ type: 'SET_LOADING', payload: false });
@@ -251,6 +249,7 @@ export function DesignerProvider({ children }) {
       }
       
       setIsInitialized(true);
+      isInitializing = false; // Allow auth handler to run now
       console.log('=== INITIALIZE APP END ===');
     };
 
@@ -261,16 +260,22 @@ export function DesignerProvider({ children }) {
       async (event, session) => {
         console.log('Auth state change:', event);
         
+        // Skip auth handler during initialization
+        if (isInitializing) {
+          console.log('Auth handler: Skipping during initialization');
+          return;
+        }
+        
         if (event === 'SIGNED_IN' && session?.user) {
           dispatch({ type: 'SET_USER', payload: session.user });
           
-          // Only load data if we don't already have it AND app is not initialized
-          if (state.designers.length === 0 && !hasLoadedData.current && !isInitialized) {
+          // Only load data if we don't already have it
+          if (state.designers.length === 0 && !hasLoadedData.current) {
             console.log('Auth SIGNED_IN: No designers, loading data...');
             await loadDesigners();
             dispatch({ type: 'SET_LOADING', payload: false });
           } else {
-            console.log('Auth SIGNED_IN: Designers already loaded or app initialized, skipping...');
+            console.log('Auth SIGNED_IN: Designers already loaded, skipping...');
           }
         } else if (event === 'SIGNED_OUT') {
           dispatch({ type: 'SET_USER', payload: null });

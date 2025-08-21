@@ -336,6 +336,10 @@ export function DesignerProvider({ children }) {
       
       // Try updating without selecting the result first
       console.log('Sending update request to Supabase...');
+      console.log('Update payload:', { id, updates });
+      console.log('Updates object keys:', Object.keys(updates));
+      console.log('Updates object values:', Object.values(updates));
+      
       const { error: updateError } = await supabase
         .from('designers')
         .update(updates)

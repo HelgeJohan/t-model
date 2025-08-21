@@ -112,6 +112,8 @@ export function DesignerProvider({ children }) {
         .select('*')
         .order('name');
 
+      console.log('Supabase response received:', { designers, error });
+
       if (error) {
         console.error('Error fetching designers:', error);
         throw error;
@@ -128,7 +130,9 @@ export function DesignerProvider({ children }) {
         hasLoadedData.current = true;
         
         // Load assessments after designers are loaded
+        console.log('Starting to load assessments...');
         await loadAssessments(designers);
+        console.log('Assessments loading completed');
       } else {
         console.log('No designers returned from database');
       }

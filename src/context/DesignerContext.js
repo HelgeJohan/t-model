@@ -87,6 +87,9 @@ export function DesignerProvider({ children }) {
   useEffect(() => {
     if (state.currentDesigner) {
       localStorage.setItem('currentDesigner', state.currentDesigner);
+    } else {
+      // Clear localStorage when currentDesigner is null (landing page)
+      localStorage.removeItem('currentDesigner');
     }
   }, [state.currentDesigner]);
 

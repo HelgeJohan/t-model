@@ -334,26 +334,30 @@ export function DesignerProvider({ children }) {
       
       console.log('Designer exists:', existingDesigner);
       
-      // Now perform the update
+      // Try a different update approach - don't use .single() for the update
       const { data: designer, error } = await supabase
         .from('designers')
         .update(updates)
         .eq('id', id)
-        .select()
-        .single();
+        .select();
 
       if (error) {
         console.error('Error updating designer:', error);
         throw error;
       }
 
-      console.log('Designer updated successfully:', designer);
+      // Check if we got any results
+      if (!designer || designer.length === 0) {
+        throw new Error('No designer was updated - update operation failed');
+      }
+
+      console.log('Designer updated successfully:', designer[0]);
       
-      // Update local state
-      dispatch({ type: 'UPDATE_DESIGNER', payload: designer });
+      // Update local state with the first (and should be only) result
+      dispatch({ type: 'UPDATE_DESIGNER', payload: designer[0] });
       
       console.log('=== UPDATE DESIGNER END ===');
-      return designer;
+      return designer[0];
     } catch (error) {
       console.error('Error updating designer:', error);
       console.error('Error details:', error.message, error.code, error.details);

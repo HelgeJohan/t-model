@@ -77,11 +77,11 @@ export function DesignerProvider({ children }) {
   useEffect(() => {
     // Restore current designer from localStorage on refresh
     const savedDesigner = localStorage.getItem('currentDesigner');
-    if (savedDesigner && !state.currentDesigner) {
+    if (savedDesigner && !state.currentDesigner && !isInitialized) {
       console.log('Restoring current designer from localStorage:', savedDesigner);
       dispatch({ type: 'SET_CURRENT_DESIGNER', payload: savedDesigner });
     }
-  }, [state.currentDesigner]);
+  }, [state.currentDesigner, isInitialized]);
 
   // Save current designer to localStorage when it changes
   useEffect(() => {

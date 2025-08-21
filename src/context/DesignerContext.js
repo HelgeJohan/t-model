@@ -106,11 +106,18 @@ export function DesignerProvider({ children }) {
     try {
       console.log('About to call supabase.from...');
       
-      // Simple, direct approach without timeouts
-      const { data: designers, error } = await supabase
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Designers loading timeout after 10 seconds')), 10000);
+      });
+      
+      const dataPromise = supabase
         .from('designers')
         .select('*')
         .order('name');
+      
+      // Race between timeout and data loading
+      const { data: designers, error } = await Promise.race([dataPromise, timeoutPromise]);
 
       console.log('Supabase response received:', { designers, error });
 
